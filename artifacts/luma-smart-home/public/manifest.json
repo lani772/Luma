@@ -1,0 +1,29 @@
+{
+  "name": "LUMA Smart Home",
+  "short_name": "LUMA",
+  "description": "Premium smart home control — manage lights, energy, users & automations.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#2563EB",
+  "background_color": "#0A0E1A",
+  "lang": "en",
+  "categories": ["utilities", "lifestyle"],
+  "icons": [
+    {
+      "src": "/assets/images/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/images/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
