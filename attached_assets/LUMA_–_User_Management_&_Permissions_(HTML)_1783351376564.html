@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUMA User Management</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #080c1a;
+  }
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+  button { font-family: inherit; }
+  input:focus { outline: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const C = {
+  bg:"#080c1a", card:"rgba(255,255,255,0.04)", bdr:"rgba(255,255,255,0.07)",
+  purple:"#7c3aed", indigo:"#6366f1", cyan:"#06b6d4",
+  amber:"#f59e0b", green:"#10b981", red:"#ef4444", pink:"#ec4899",
+};
+
+const ROLES = {
+  owner:  { label:"Owner",  c:"#f59e0b", bg:"rgba(245,158,11,0.18)",  icon:"👑", rank:0 },
+  admin:  { label:"Admin",  c:"#7c3aed", bg:"rgba(124,58,237,0.18)", icon:"🛡️", rank:1 },
+  member: { label:"Member", c:"#06b6d4", bg:"rgba(6,182,212,0.18)",  icon:"👤", rank:2 },
+  guest:  { label:"Guest",  c:"#9ca3af", bg:"rgba(156,163,175,0.15)",icon:"🔗", rank:3 },
+};
+
+const PERMS_DEF = [
+  { k:"lamps",  icon:"💡", label:"Lamps",    desc:"Turn on/off, dim, color" },
+  { k:"energy", icon:"⚡", label:"Energy",   desc:"View consumption & cost" },
+  { k:"sched",  icon:"🕐", label:"Schedule", desc:"Create automations" },
+  { k:"users",  icon:"👥", label:"Users",    desc:"Invite & manage" },
+  { k:"cfg",    icon:"⚙️", label:"Settings", desc:"System configuration" },
+  { k:"logs",   icon:"📋", label:"Logs",     desc:"Activity history" },
+];
+
+const LAMP_NAMES = ["Living Rm","Bedroom","Kitchen","Porch","Study","Garage"];
+
+const INIT_USERS = [
+  { id:1, name:"Umurage K.", email:"umurage@luma.rw",    role:"owner",  av:"UK", avIdx:0, online:true,  seen:"Now",     joined:"Jan 2025", acts:47, lamps:[0,1,2,3,4,5], perms:{lamps:true,energy:true,sched:true,users:true,cfg:true,logs:true} },
+  { id:2, name:"Alice M.",   email:"alice@luma.rw",      role:"admin",  av:"AM", avIdx:1, online:true,  seen:"2m ago",  joined:"Mar 2025", acts:31, lamps:[0,1,2,3,4,5], perms:{lamps:true,energy:true,sched:true,users:true,cfg:false,logs:true} },
+  { id:3, name:"Bob N.",     email:"bob@luma.rw",        role:"member", av:"BN", avIdx:2, online:false, seen:"1h ago",  joined:"May 2025", acts:18, lamps:[0,2,3],        perms:{lamps:true,energy:true,sched:false,users:false,cfg:false,logs:false} },
+  { id:4, name:"Claire R.",  email:"claire@luma.rw",     role:"member", av:"CR", avIdx:3, online:true,  seen:"15m ago", joined:"Jun 2025", acts:12, lamps:[0,1,4],        perms:{lamps:true,energy:false,sched:false,users:false,cfg:false,logs:false} },
+  { id:5, name:"David P.",   email:"david@guest.rw",     role:"guest",  av:"DP", avIdx:4, online:false, seen:"2d ago",  joined:"Jun 2026", acts:3,  lamps:[0],            perms:{lamps:true,energy:false,sched:false,users:false,cfg:false,logs:false}, exp:"Jun 30" },
+];
+
+const ACTIVITY = [
+  { uid:2, action:"turned on",      target:"Kitchen Downlight",  time:"2m ago",  icon:"💡", c:C.green  },
+  { uid:4, action:"dimmed to 60%",  target:"Living Room Main",   time:"14m ago", icon:"🔅", c:C.amber  },
+  { uid:1, action:"set schedule",   target:"Bedroom Ceiling",    time:"1h ago",  icon:"🕐", c:C.purple },
+  { uid:3, action:"turned off",     target:"Study Desk Lamp",    time:"2h ago",  icon:"💡", c:C.red    },
+  { uid:2, action:"invited user",   target:"David P. (Guest)",   time:"3h ago",  icon:"👤", c:C.cyan   },
+  { uid:1, action:"role changed",   target:"Alice → Admin",      time:"5h ago",  icon:"🛡️", c:"#a78bfa" },
+  { uid:3, action:"adjusted color", target:"Kitchen Downlight",  time:"2d ago",  icon:"🎨", c:C.pink   },
+  { uid:5, action:"turned on",      target:"Living Room Main",   time:"2d ago",  icon:"💡", c:C.green  },
+];
+
+const AV_GRAD = [
+  ["#7c3aed","#6366f1"],["#ec4899","#f43f5e"],["#06b6d4","#0ea5e9"],
+  ["#10b981","#059669"],["#f59e0b","#d97706"],
+];
+
+// ── STATE ──
+let state = {
+  tab: "members",
+  search: "",
+  expanded: null,
+  roleFilter: "all",
+  pSect: "features",
+  changed: false,
+  saveOk: false,
+  invEmail: "",
+  invRole: "member",
+  invSent: false,
+  confirmDel: null,
+  users: INIT_USERS.map(u => ({...u})),
+  perms: Object.fromEntries(INIT_USERS.map(u=>[u.id,{...u.perms}])),
+  lamps: Object.fromEntries(INIT_USERS.map(u=>[u.id,[...u.lamps]])),
+  invites: [
+    { id:"i1", email:"emma@kigali.rw", role:"member", sent:"2h ago",  exp:"Jun 30" },
+    { id:"i2", email:"john@rw.rw",     role:"guest",  sent:"1d ago",  exp:"Jun 25" },
+  ],
+};
+
+let saveOkTimeout = null;
+let invSentTimeout = null;
+
+function setState(patch) {
+  Object.assign(state, patch);
+  render();
+}
+
+const cardStyle = `background:${C.card};backdrop-filter:blur(12px);border:1px solid ${C.bdr};border-radius:20px;padding:16px;`;
+
+function avHTML(u, sz=44) {
+  const [g1,g2] = AV_GRAD[u.avIdx % AV_GRAD.length];
+  const r = sz * 0.28;
+  return `
+    <div style="position:relative;flex-shrink:0;">
+      <div style="width:${sz}px;height:${sz}px;border-radius:${r}px;background:linear-gradient(135deg,${g1},${g2});display:flex;align-items:center;justify-content:center;font-size:${sz*0.3}px;font-weight:800;color:white;letter-spacing:-0.5px;">${u.av}</div>
+      ${u.online ? `<div style="position:absolute;bottom:0;right:0;width:${sz*0.22}px;height:${sz*0.22}px;border-radius:50%;background:${C.green};border:2px solid #080c1a;"></div>` : ""}
+    </div>
+  `;
+}
+
+function badgeHTML(role) {
+  const r = ROLES[role];
+  return `<span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap;background:${r.bg};color:${r.c};border:1px solid ${r.c}40;">${r.icon} ${r.label}</span>`;
+}
+
+function esc(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── RENDER ──
+function render() {
+  const root = document.getElementById("root");
+  const s = state;
+  const q = s.search.toLowerCase();
+  const filtered = s.users.filter(u =>
+    (s.roleFilter==="all" || u.role===s.roleFilter) &&
+    (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+  );
+  const onlineCount = s.users.filter(u=>u.online).length;
+  const adminCount  = s.users.filter(u=>u.role==="admin"||u.role==="owner").length;
+  const guestCount  = s.users.filter(u=>u.role==="guest").length;
+
+  root.innerHTML = `
+    <div style="background:linear-gradient(160deg,#080c1a,#0e1230 50%,#080c1a);min-height:100vh;color:white;font-family:'Inter',system-ui,sans-serif;max-width:430px;margin:0 auto;overflow-x:hidden;position:relative;">
+
+      <div style="position:absolute;top:-80px;right:5%;width:240px;height:240px;background:radial-gradient(circle,rgba(124,58,237,0.18),transparent 70%);pointer-events:none;"></div>
+      <div style="position:absolute;top:200px;left:-10%;width:180px;height:180px;background:radial-gradient(circle,rgba(6,182,212,0.1),transparent 70%);pointer-events:none;"></div>
+
+      <!-- HEADER -->
+      <div style="padding:22px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;position:relative;">
+        <div>
+          <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:1px;">LUMA Smart Home</div>
+          <h1 style="font-size:26px;font-weight:800;margin:2px 0 0;line-height:1.1;background:linear-gradient(90deg,#fff 30%,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">User Management</h1>
+          <div style="font-size:11px;color:#4b5563;margin-top:3px;">${s.users.length} members · ${onlineCount} online now</div>
+        </div>
+        <button id="btnInviteHeader" style="margin-top:6px;padding:9px 16px;border-radius:12px;border:none;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#6366f1);color:white;font-size:12px;font-weight:700;box-shadow:0 4px 14px rgba(124,58,237,0.45);flex-shrink:0;">+ Invite</button>
+      </div>
+
+      <!-- SEARCH -->
+      <div style="padding:14px 20px 0;">
+        <div style="position:relative;">
+          <span style="position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;color:#4b5563;pointer-events:none;">🔍</span>
+          <input id="searchInput" value="${esc(s.search)}" placeholder="Search by name or email…"
+            style="width:100%;padding:11px 14px 11px 38px;border-radius:14px;background:rgba(255,255,255,0.06);border:1px solid ${C.bdr};color:white;font-size:13px;outline:none;box-sizing:border-box;caret-color:#7c3aed;"/>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      <div style="padding:12px 20px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        ${[
+          {label:"Total",  val:s.users.length, color:C.purple, icon:"👥"},
+          {label:"Online", val:onlineCount,  color:C.green,  icon:"●"},
+          {label:"Admins", val:adminCount,   color:C.amber,  icon:"🛡️"},
+          {label:"Guests", val:guestCount,   color:"#9ca3af",icon:"🔗"},
+        ].map(st => `
+          <div style="background:${C.card};border:1px solid ${st.color}25;border-radius:14px;padding:10px 6px;text-align:center;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:-10px;right:-10px;font-size:28px;opacity:0.06;">${st.icon}</div>
+            <div style="font-size:24px;font-weight:900;color:${st.color};line-height:1;">${st.val}</div>
+            <div style="font-size:9px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;margin-top:3px;">${st.label}</div>
+          </div>
+        `).join("")}
+      </div>
+
+      <!-- TABS -->
+      <div style="padding:14px 20px 0;display:flex;gap:6px;overflow-x:auto;">
+        ${[["members","👥","Members"],["permissions","🔐","Permissions"],["activity","📋","Activity"],["invites","📨","Invites"]].map(([t,ico,lbl]) => `
+          <button class="tabBtn" data-tab="${t}" style="flex-shrink:0;padding:7px 14px;border-radius:30px;border:none;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;background:${s.tab===t?"linear-gradient(135deg,#7c3aed,#6366f1)":"rgba(255,255,255,0.06)"};color:${s.tab===t?"white":"#6b7280"};box-shadow:${s.tab===t?"0 4px 12px rgba(124,58,237,0.45)":"none"};transition:all 0.2s;">${ico} ${lbl}</button>
+        `).join("")}
+      </div>
+
+      ${s.tab==="members" ? renderMembers(s, filtered) : ""}
+      ${s.tab==="permissions" ? renderPermissions(s) : ""}
+      ${s.tab==="activity" ? renderActivity(s) : ""}
+      ${s.tab==="invites" ? renderInvites(s) : ""}
+
+      <div style="height:90px;"></div>
+
+      <!-- BOTTOM NAV -->
+      <div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(8,12,26,0.96);backdrop-filter:blur(24px);border-top:1px solid ${C.bdr};padding:10px 8px 20px;display:flex;justify-content:space-around;">
+        ${[["🏠","Home",false],["💡","Lamps",false],["⚡","Energy",false],["👥","Users",true],["⋯","More",false]].map(([icon,label,active]) => `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;min-width:50px;">
+            <span style="font-size:22px;">${icon}</span>
+            <span style="font-size:10px;font-weight:${active?700:400};color:${active?"#a78bfa":"#4b5563"};">${label}</span>
+            ${active ? `<div style="width:22px;height:2.5px;border-radius:2px;background:linear-gradient(90deg,#7c3aed,#6366f1);"></div>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  attachListeners();
+}
+
+function renderMembers(s, filtered) {
+  return `
+    <div style="padding:14px 20px 0;">
+      <div style="display:flex;gap:5px;margin-bottom:12px;overflow-x:auto;">
+        ${[["all","All"],["owner","Owner"],["admin","Admin"],["member","Member"],["guest","Guest"]].map(([r,l]) => {
+          const rc = r==="all" ? null : ROLES[r];
+          const active = s.roleFilter===r;
+          return `<button class="roleFilterBtn" data-role="${r}" style="flex-shrink:0;padding:5px 12px;border-radius:20px;border:none;cursor:pointer;font-size:10px;font-weight:700;background:${active ? (rc?rc.bg:"rgba(255,255,255,0.12)") : "rgba(255,255,255,0.05)"};color:${active ? (rc?rc.c:"white") : "#6b7280"};border:1px solid ${active ? (rc?rc.c+"50":"rgba(255,255,255,0.2)") : "transparent"};">${rc?rc.icon+" ":""}${l}</button>`;
+        }).join("")}
+      </div>
+
+      ${filtered.length===0 ? `<div style="text-align:center;padding:40px 0;color:#4b5563;font-size:13px;">No users found</div>` : ""}
+
+      ${filtered.map(u => renderUserCard(s, u)).join("")}
+    </div>
+  `;
+}
+
+function renderUserCard(s, u) {
+  const expanded = s.expanded === u.id;
+  const userLamps = s.lamps[u.id] || [];
+  const userPerms = s.perms[u.id] || {};
+  return `
+    <div class="userCard" data-uid="${u.id}" style="${cardStyle}margin-bottom:12px;transition:border-color 0.2s;border-color:${expanded?"rgba(124,58,237,0.4)":C.bdr};">
+      <div style="display:flex;align-items:center;gap:12px;">
+        ${avHTML(u)}
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;">
+            <span style="font-size:14px;font-weight:700;">${esc(u.name)}</span>
+            ${badgeHTML(u.role)}
+            ${u.exp ? `<span style="font-size:9px;color:${C.red};font-weight:600;padding:2px 7px;border-radius:20px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);">⏱ ${u.exp}</span>` : ""}
+          </div>
+          <div style="font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(u.email)}</div>
+          <div style="display:flex;gap:10px;margin-top:5px;">
+            <span style="font-size:10px;color:${u.online?C.green:"#6b7280"};font-weight:500;">${u.online?"🟢":"⚫"} ${u.seen}</span>
+            <span style="font-size:10px;color:#4b5563;">💡 ${userLamps.length}</span>
+            <span style="font-size:10px;color:#4b5563;">⚡ ${u.acts} actions</span>
+          </div>
+        </div>
+        <button class="expandBtn" data-uid="${u.id}" style="width:32px;height:32px;border-radius:10px;border:1px solid ${expanded?"rgba(124,58,237,0.5)":C.bdr};background:${expanded?"rgba(124,58,237,0.15)":"rgba(255,255,255,0.04)"};cursor:pointer;color:${expanded?"#a78bfa":"#6b7280"};font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s;">${expanded?"▲":"▼"}</button>
+      </div>
+
+      ${expanded ? `
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${C.bdr};">
+          <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Lamp Access</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px;">
+            ${LAMP_NAMES.map((l, li) => {
+              const has = userLamps.includes(li);
+              return `<div style="padding:4px 10px;border-radius:20px;font-size:10px;background:${has?`${C.amber}18`:"rgba(255,255,255,0.04)"};border:1px solid ${has?C.amber+"45":"rgba(255,255,255,0.07)"};color:${has?C.amber:"#4b5563"};">💡 ${l}</div>`;
+            }).join("")}
+          </div>
+
+          <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Feature Permissions</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px;">
+            ${PERMS_DEF.map(p => {
+              const has = userPerms[p.k];
+              return `<div style="display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:10px;background:${has?`${C.green}15`:"rgba(255,255,255,0.04)"};border:1px solid ${has?C.green+"40":"rgba(255,255,255,0.07)"};color:${has?C.green:"#4b5563"};">${p.icon} ${p.label}</div>`;
+            }).join("")}
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span style="font-size:11px;color:#4b5563;">📅 Joined ${u.joined}</span>
+            <span style="font-size:11px;color:#4b5563;">🎯 ${u.acts} total actions</span>
+          </div>
+
+          ${u.role !== "owner" ? `
+            <div style="display:flex;gap:8px;">
+              <button class="goPermsBtn" style="flex:1;padding:9px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:600;background:rgba(124,58,237,0.14);border:1px solid rgba(124,58,237,0.35);color:#a78bfa;">🔐 Permissions</button>
+              ${s.confirmDel === u.id ? `
+                <button class="confirmRemoveBtn" data-uid="${u.id}" style="flex:1;padding:9px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:700;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);color:${C.red};">Confirm Remove</button>
+                <button class="cancelRemoveBtn" style="padding:9px 12px;border-radius:12px;cursor:pointer;font-size:12px;background:rgba(255,255,255,0.06);border:1px solid ${C.bdr};color:#6b7280;">✕</button>
+              ` : `
+                <button class="askRemoveBtn" data-uid="${u.id}" style="padding:9px 14px;border-radius:12px;cursor:pointer;font-size:12px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:${C.red};">🗑</button>
+              `}
+            </div>
+          ` : ""}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderPermissions(s) {
+  const locked = (u) => u.role === "owner";
+  return `
+    <div style="padding:14px 20px 0;">
+      <div style="display:flex;background:rgba(255,255,255,0.04);border-radius:12px;padding:3px;gap:3px;margin-bottom:14px;">
+        ${[["features","🔐 Feature Permissions"],["lamps","💡 Lamp Access"]].map(([k,l]) => `
+          <button class="pSectBtn" data-psect="${k}" style="flex:1;padding:9px 6px;border-radius:9px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:${s.pSect===k?"linear-gradient(135deg,#7c3aed,#6366f1)":"transparent"};color:${s.pSect===k?"white":"#6b7280"};transition:all 0.2s;">${l}</button>
+        `).join("")}
+      </div>
+
+      ${s.pSect==="features" ? `
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Permission Matrix</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:14px;">Tap cells to toggle · 👑 Owner row is locked</div>
+
+          <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;padding-left:102px;">
+            ${PERMS_DEF.map(p => `<div style="width:36px;text-align:center;font-size:15px;flex-shrink:0;">${p.icon}</div>`).join("")}
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;margin-bottom:10px;padding-left:102px;">
+            ${PERMS_DEF.map(p => `<div style="width:36px;text-align:center;font-size:8px;color:#4b5563;flex-shrink:0;line-height:1.2;">${p.label}</div>`).join("")}
+          </div>
+
+          ${s.users.map(u => {
+            const lock = locked(u);
+            return `
+              <div style="display:flex;align-items:center;gap:2px;margin-bottom:8px;">
+                <div style="width:100px;flex-shrink:0;display:flex;align-items:center;gap:7px;padding-right:2px;">
+                  ${avHTML(u, 28)}
+                  <span style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${lock?ROLES.owner.c:"white"};">${u.name.split(" ")[0]}</span>
+                </div>
+                ${PERMS_DEF.map(p => {
+                  const has = s.perms[u.id]?.[p.k];
+                  return `<div class="permCell" data-uid="${u.id}" data-perm="${p.k}" data-locked="${lock}" style="width:36px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${has ? (lock?`${C.amber}22`:`${C.green}18`) : "rgba(255,255,255,0.04)"};border:1px solid ${has?(lock?C.amber:C.green)+"45":"rgba(255,255,255,0.07)"};cursor:${lock?"default":"pointer"};transition:all 0.15s;font-size:13px;">${lock ? "🔒" : has ? "✓" : "–"}</div>`;
+                }).join("")}
+              </div>
+            `;
+          }).join("")}
+
+          <div style="display:flex;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid ${C.bdr};">
+            ${[["✓",C.green,"Allowed"],["–","#6b7280","Denied"],["🔒",C.amber,"Locked"]].map(([sym,c,l]) => `
+              <div style="display:flex;align-items:center;gap:5px;">
+                <span style="font-size:11px;">${sym}</span>
+                <span style="font-size:10px;color:${c};">${l}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      ${s.pSect==="lamps" ? `
+        <div style="${cardStyle}">
+          <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Lamp Access Matrix</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:14px;">Tap cells to grant or revoke lamp access</div>
+
+          <div style="display:flex;align-items:center;gap:2px;margin-bottom:4px;padding-left:102px;">
+            ${LAMP_NAMES.map(() => `<div style="width:36px;text-align:center;font-size:14px;flex-shrink:0;">💡</div>`).join("")}
+          </div>
+          <div style="display:flex;align-items:center;gap:2px;margin-bottom:10px;padding-left:102px;">
+            ${LAMP_NAMES.map(l => `<div style="width:36px;text-align:center;font-size:8px;color:#4b5563;flex-shrink:0;line-height:1.2;">${l}</div>`).join("")}
+          </div>
+
+          ${s.users.map(u => {
+            const lock = locked(u);
+            const userLamps = s.lamps[u.id] || [];
+            return `
+              <div style="display:flex;align-items:center;gap:2px;margin-bottom:8px;">
+                <div style="width:100px;flex-shrink:0;display:flex;align-items:center;gap:7px;padding-right:2px;">
+                  ${avHTML(u, 28)}
+                  <span style="font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${lock?ROLES.owner.c:"white"};">${u.name.split(" ")[0]}</span>
+                </div>
+                ${LAMP_NAMES.map((_, li) => {
+                  const has = userLamps.includes(li);
+                  return `<div class="lampCell" data-uid="${u.id}" data-lamp="${li}" data-locked="${lock}" style="width:36px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${has?(lock?`${C.amber}22`:`${C.cyan}18`):"rgba(255,255,255,0.04)"};border:1px solid ${has?(lock?C.amber:C.cyan)+"45":"rgba(255,255,255,0.07)"};cursor:${lock?"default":"pointer"};transition:all 0.15s;font-size:${lock?13:12}px;color:${has?(lock?C.amber:C.cyan):"#4b5563"};">${lock?"🔒":has?"💡":"–"}</div>`;
+                }).join("")}
+              </div>
+            `;
+          }).join("")}
+
+          <div style="display:flex;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid ${C.bdr};">
+            ${[["💡",C.cyan,"Access granted"],["–","#6b7280","No access"],["🔒",C.amber,"Owner (locked)"]].map(([sym,c,l]) => `
+              <div style="display:flex;align-items:center;gap:5px;">
+                <span style="font-size:11px;">${sym}</span>
+                <span style="font-size:10px;color:${c};">${l}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : ""}
+
+      ${(s.changed || s.saveOk) ? `
+        <div style="position:fixed;bottom:82px;left:50%;transform:translateX(-50%);border-radius:16px;padding:10px 18px;display:flex;align-items:center;gap:10px;background:${s.saveOk?"rgba(16,185,129,0.25)":"linear-gradient(135deg,#7c3aed,#6366f1)"};border:${s.saveOk?`1px solid ${C.green}50`:"none"};box-shadow:0 8px 28px rgba(124,58,237,0.5);z-index:100;white-space:nowrap;transition:all 0.3s;">
+          ${s.saveOk ? `
+            <span style="font-size:13px;font-weight:700;color:${C.green};">✅ Changes saved!</span>
+          ` : `
+            <span style="font-size:13px;font-weight:600;color:white;">⚠ Unsaved changes</span>
+            <button id="saveChangesBtn" style="padding:6px 14px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.22);color:white;font-size:12px;font-weight:700;">Save</button>
+            <button id="undoChangesBtn" style="padding:6px 10px;border-radius:8px;border:none;cursor:pointer;background:rgba(0,0,0,0.2);color:rgba(255,255,255,0.7);font-size:12px;">Undo</button>
+          `}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderActivity(s) {
+  return `
+    <div style="padding:14px 20px 0;">
+      <div style="${cardStyle}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:13px;font-weight:700;">Activity Log</div>
+          <span style="font-size:10px;color:#4b5563;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,0.05);">${ACTIVITY.length} events</span>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:16px;">All users · Real-time</div>
+
+        <div style="position:relative;">
+          <div style="position:absolute;left:15px;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.05);"></div>
+          ${ACTIVITY.map(a => {
+            const u = s.users.find(x => x.id === a.uid) || {name:"Unknown"};
+            return `
+              <div style="display:flex;gap:12px;padding-bottom:14px;position:relative;">
+                <div style="width:30px;height:30px;border-radius:50%;flex-shrink:0;z-index:1;background:${a.c}18;border:2px solid ${a.c}40;display:flex;align-items:center;justify-content:center;font-size:13px;">${a.icon}</div>
+                <div style="flex:1;background:rgba(255,255,255,0.03);border-radius:12px;padding:9px 12px;border:1px solid rgba(255,255,255,0.05);">
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div style="flex:1;margin-right:8px;">
+                      <span style="font-size:12px;font-weight:700;color:${a.c};">${esc(u.name||"Unknown")} </span>
+                      <span style="font-size:12px;color:#9ca3af;">${a.action}</span>
+                    </div>
+                    <span style="font-size:10px;color:#4b5563;flex-shrink:0;">${a.time}</span>
+                  </div>
+                  <div style="font-size:11px;color:#6b7280;margin-top:3px;">→ ${a.target}</div>
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+
+      <div style="${cardStyle}margin-top:12px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:12px;">Actions per User</div>
+        ${[...s.users].sort((a,b)=>b.acts-a.acts).map(u => {
+          const pct = Math.round((u.acts/47)*100);
+          return `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              ${avHTML(u, 30)}
+              <div style="flex:1;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                  <span style="font-size:12px;font-weight:600;">${esc(u.name)}</span>
+                  <span style="font-size:12px;font-weight:700;color:${ROLES[u.role].c};">${u.acts}</span>
+                </div>
+                <div style="height:5px;border-radius:3px;background:rgba(255,255,255,0.07);overflow:hidden;">
+                  <div style="width:${pct}%;height:100%;border-radius:3px;background:linear-gradient(90deg,${ROLES[u.role].c},${ROLES[u.role].c}99);transition:width 0.4s ease;"></div>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderInvites(s) {
+  const roleDescs = {
+    admin: "Full control — can manage users, lamps, schedules, view all energy data, and modify system settings.",
+    member: "Standard access — can control assigned lamps, view energy analytics, and set personal schedules.",
+    guest: "Limited access — temporary pass, single lamp control only. Recommend setting an expiry date.",
+  };
+  const validEmail = s.invEmail.includes("@");
+  return `
+    <div style="padding:14px 20px 0;">
+      <div style="${cardStyle}margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Send Invitation</div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:14px;">Grant access to your LUMA smart home</div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Email Address</div>
+          <input id="inviteEmailInput" value="${esc(s.invEmail)}" placeholder="user@example.com"
+            style="width:100%;padding:11px 14px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid ${s.invEmail && !validEmail ? C.red : C.bdr};color:white;font-size:13px;outline:none;box-sizing:border-box;caret-color:#7c3aed;"/>
+          ${s.invEmail && !validEmail ? `<div style="font-size:10px;color:${C.red};margin-top:4px;">Please enter a valid email address</div>` : ""}
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:7px;">Role</div>
+          <div style="display:flex;gap:6px;">
+            ${["admin","member","guest"].map(r => {
+              const role = ROLES[r];
+              const active = s.invRole === r;
+              return `<button class="inviteRoleBtn" data-role="${r}" style="flex:1;padding:10px 4px;border-radius:12px;cursor:pointer;background:${active?role.bg:"rgba(255,255,255,0.05)"};color:${active?role.c:"#6b7280"};border:1px solid ${active?role.c+"50":C.bdr};font-size:11px;font-weight:700;transition:all 0.15s;">${role.icon}<br/>${role.label}</button>`;
+            }).join("")}
+          </div>
+        </div>
+
+        <div style="background:${ROLES[s.invRole].c}12;border:1px solid ${ROLES[s.invRole].c}25;border-radius:12px;padding:10px 13px;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:700;color:${ROLES[s.invRole].c};margin-bottom:3px;">${ROLES[s.invRole].icon} ${ROLES[s.invRole].label} Access</div>
+          <div style="font-size:11px;color:#9ca3af;line-height:1.5;">${roleDescs[s.invRole]}</div>
+        </div>
+
+        <button id="sendInviteBtn" ${!validEmail ? "disabled" : ""} style="width:100%;padding:13px;border-radius:14px;border:none;cursor:${validEmail?"pointer":"not-allowed"};background:${s.invSent ? "rgba(16,185,129,0.25)" : validEmail ? "linear-gradient(135deg,#7c3aed,#6366f1)" : "rgba(255,255,255,0.05)"};color:${s.invSent ? C.green : validEmail ? "white" : "#4b5563"};font-size:13px;font-weight:700;box-shadow:${validEmail && !s.invSent ? "0 4px 16px rgba(124,58,237,0.45)" : "none"};transition:all 0.3s;">${s.invSent ? "✅ Invitation Sent!" : "📨 Send Invitation"}</button>
+      </div>
+
+      <div style="${cardStyle}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:13px;font-weight:700;">Pending Invitations</div>
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;background:${s.invites.length?`${C.amber}18`:"rgba(255,255,255,0.05)"};color:${s.invites.length?C.amber:"#6b7280"};">${s.invites.length} pending</span>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:14px;">Awaiting response</div>
+
+        ${s.invites.length===0 ? `<div style="text-align:center;padding:20px 0;color:#4b5563;font-size:13px;">🎉 No pending invitations</div>` : ""}
+
+        ${s.invites.map((inv, i) => {
+          const role = ROLES[inv.role];
+          return `
+            <div style="background:rgba(255,255,255,0.03);border:1px solid ${C.bdr};border-radius:14px;padding:12px 13px;margin-bottom:${i<s.invites.length-1?10:0}px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                <div>
+                  <div style="font-size:12px;font-weight:700;">${esc(inv.email)}</div>
+                  <div style="display:flex;gap:7px;align-items:center;margin-top:4px;">
+                    <span style="font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;background:${role.bg};color:${role.c};border:1px solid ${role.c}40;">${role.icon} ${role.label}</span>
+                    <span style="font-size:10px;color:#4b5563;">Sent ${inv.sent}</span>
+                  </div>
+                </div>
+                <span style="font-size:10px;font-weight:600;color:${C.red};padding:3px 8px;border-radius:20px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);">⏱ ${inv.exp}</span>
+              </div>
+              <div style="display:flex;gap:7px;">
+                <button class="resendBtn" style="flex:1;padding:8px;border-radius:10px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;">↺ Resend</button>
+                <button class="cancelInviteBtn" data-id="${inv.id}" style="flex:1;padding:8px;border-radius:10px;cursor:pointer;font-size:11px;font-weight:600;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:${C.red};">✕ Cancel</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+// ── EVENT HANDLERS ──
+function attachListeners() {
+  const root = document.getElementById("root");
+
+  const invHeader = document.getElementById("btnInviteHeader");
+  if (invHeader) invHeader.onclick = () => setState({ tab: "invites" });
+
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      const cursorPos = e.target.selectionStart;
+      state.search = e.target.value;
+      render();
+      const newInput = document.getElementById("searchInput");
+      newInput.focus();
+      newInput.setSelectionRange(cursorPos, cursorPos);
+    };
+  }
+
+  root.querySelectorAll(".tabBtn").forEach(btn => {
+    btn.onclick = () => setState({ tab: btn.dataset.tab });
+  });
+
+  root.querySelectorAll(".roleFilterBtn").forEach(btn => {
+    btn.onclick = () => setState({ roleFilter: btn.dataset.role });
+  });
+
+  root.querySelectorAll(".expandBtn").forEach(btn => {
+    btn.onclick = () => {
+      const uid = parseInt(btn.dataset.uid);
+      setState({ expanded: state.expanded === uid ? null : uid });
+    };
+  });
+
+  root.querySelectorAll(".goPermsBtn").forEach(btn => {
+    btn.onclick = () => setState({ tab: "permissions" });
+  });
+
+  root.querySelectorAll(".askRemoveBtn").forEach(btn => {
+    btn.onclick = () => setState({ confirmDel: parseInt(btn.dataset.uid) });
+  });
+
+  root.querySelectorAll(".cancelRemoveBtn").forEach(btn => {
+    btn.onclick = () => setState({ confirmDel: null });
+  });
+
+  root.querySelectorAll(".confirmRemoveBtn").forEach(btn => {
+    btn.onclick = () => {
+      const uid = parseInt(btn.dataset.uid);
+      state.users = state.users.filter(u => u.id !== uid);
+      state.confirmDel = null;
+      render();
+    };
+  });
+
+  root.querySelectorAll(".pSectBtn").forEach(btn => {
+    btn.onclick = () => setState({ pSect: btn.dataset.psect });
+  });
+
+  root.querySelectorAll(".permCell").forEach(cell => {
+    cell.onclick = () => {
+      if (cell.dataset.locked === "true") return;
+      const uid = parseInt(cell.dataset.uid);
+      const perm = cell.dataset.perm;
+      state.perms[uid] = { ...state.perms[uid], [perm]: !state.perms[uid][perm] };
+      state.changed = true;
+      render();
+    };
+  });
+
+  root.querySelectorAll(".lampCell").forEach(cell => {
+    cell.onclick = () => {
+      if (cell.dataset.locked === "true") return;
+      const uid = parseInt(cell.dataset.uid);
+      const li = parseInt(cell.dataset.lamp);
+      const cur = state.lamps[uid] || [];
+      state.lamps[uid] = cur.includes(li) ? cur.filter(x => x !== li) : [...cur, li];
+      state.changed = true;
+      render();
+    };
+  });
+
+  const saveBtn = document.getElementById("saveChangesBtn");
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      state.changed = false;
+      state.saveOk = true;
+      render();
+      clearTimeout(saveOkTimeout);
+      saveOkTimeout = setTimeout(() => setState({ saveOk: false }), 2500);
+    };
+  }
+
+  const undoBtn = document.getElementById("undoChangesBtn");
+  if (undoBtn) {
+    undoBtn.onclick = () => {
+      state.perms = Object.fromEntries(INIT_USERS.map(u => [u.id, {...u.perms}]));
+      state.lamps = Object.fromEntries(INIT_USERS.map(u => [u.id, [...u.lamps]]));
+      state.changed = false;
+      render();
+    };
+  }
+
+  const invEmailInput = document.getElementById("inviteEmailInput");
+  if (invEmailInput) {
+    invEmailInput.oninput = (e) => {
+      const cursorPos = e.target.selectionStart;
+      state.invEmail = e.target.value;
+      render();
+      const newInput = document.getElementById("inviteEmailInput");
+      newInput.focus();
+      newInput.setSelectionRange(cursorPos, cursorPos);
+    };
+  }
+
+  root.querySelectorAll(".inviteRoleBtn").forEach(btn => {
+    btn.onclick = () => setState({ invRole: btn.dataset.role });
+  });
+
+  const sendInviteBtn = document.getElementById("sendInviteBtn");
+  if (sendInviteBtn) {
+    sendInviteBtn.onclick = () => {
+      if (!state.invEmail.includes("@")) return;
+      state.invites = [{ id: "i" + Date.now(), email: state.invEmail, role: state.invRole, sent: "Just now", exp: "Jul 23" }, ...state.invites];
+      state.invEmail = "";
+      state.invSent = true;
+      render();
+      clearTimeout(invSentTimeout);
+      invSentTimeout = setTimeout(() => setState({ invSent: false }), 3000);
+    };
+  }
+
+  root.querySelectorAll(".cancelInviteBtn").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      state.invites = state.invites.filter(inv => inv.id !== id);
+      render();
+    };
+  });
+}
+
+render();
+</script>
+</body>
+</html>

@@ -6,9 +6,14 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_SCENES,
   INITIAL_USERS,
+  INITIAL_INVITES,
+  Invite,
   LAMP_AUTOMATIONS,
   Lamp,
   LumaNotification,
+  LumaRole,
+  LumaUser,
+  LUMA_INITIAL_USERS,
   PENDING_REQUESTS,
   PendingRequest,
   SCENE_CONFIGS,
@@ -43,6 +48,14 @@ interface LumaContextType {
   toggleAutomationRule: (lampId: string, ruleId: string) => void;
   deleteAutomationRule: (lampId: string, ruleId: string) => void;
   addAutomationRule: (lampId: string, rule: AutomationRule) => void;
+  lumaUsers: LumaUser[];
+  invites: Invite[];
+  removeLumaUser: (id: number) => void;
+  togglePermCell: (userId: number, permKey: string) => void;
+  toggleLampCell: (userId: number, lampId: string) => void;
+  sendInvite: (email: string, role: LumaRole) => void;
+  cancelInvite: (id: string) => void;
+  resendInvite: (id: string) => void;
 }
 
 const LumaContext = createContext<LumaContextType | null>(null);
@@ -56,6 +69,8 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   const [approvedRequests, setApprovedRequests] = useState<PendingRequest[]>([]);
   const [lampAutomations, setLampAutomations] = useState<Record<string, AutomationRule[]>>(LAMP_AUTOMATIONS);
   const [lampActivity] = useState<Record<string, ActivityLog[]>>(LAMP_ACTIVITY);
+  const [lumaUsers, setLumaUsers] = useState<LumaUser[]>(LUMA_INITIAL_USERS);
+  const [invites, setInvites] = useState<Invite[]>(INITIAL_INVITES);
 
   const updateLamp = useCallback((id: string, patch: Partial<Lamp>) => {
     setLamps(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
@@ -141,6 +156,37 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  const removeLumaUser = useCallback((id: number) => {
+    setLumaUsers(prev => prev.filter(u => u.id !== id || u.role === "owner"));
+  }, []);
+
+  const togglePermCell = useCallback((userId: number, permKey: string) => {
+    setLumaUsers(prev => prev.map(u => {
+      if (u.id !== userId || u.role === "owner") return u;
+      return { ...u, perms: { ...u.perms, [permKey]: !u.perms[permKey] } };
+    }));
+  }, []);
+
+  const toggleLampCell = useCallback((userId: number, lampId: string) => {
+    setLumaUsers(prev => prev.map(u => {
+      if (u.id !== userId || u.role === "owner") return u;
+      const has = u.lampIds.includes(lampId);
+      return { ...u, lampIds: has ? u.lampIds.filter(l => l !== lampId) : [...u.lampIds, lampId] };
+    }));
+  }, []);
+
+  const sendInvite = useCallback((email: string, role: LumaRole) => {
+    setInvites(prev => [...prev, { id: `i${Date.now()}`, email, role, sent: "Just now", exp: "In 7 days" }]);
+  }, []);
+
+  const cancelInvite = useCallback((id: string) => {
+    setInvites(prev => prev.filter(i => i.id !== id));
+  }, []);
+
+  const resendInvite = useCallback((id: string) => {
+    setInvites(prev => prev.map(i => i.id === id ? { ...i, sent: "Just now" } : i));
+  }, []);
+
   return (
     <LumaContext.Provider value={{
       lamps, scenes, users, notifications, pendingRequests, approvedRequests,
@@ -151,6 +197,9 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
       approveRequest, rejectRequest,
       addLampSchedule, deleteLampSchedule, toggleLampSchedule,
       toggleAutomationRule, deleteAutomationRule, addAutomationRule,
+      lumaUsers, invites,
+      removeLumaUser, togglePermCell, toggleLampCell,
+      sendInvite, cancelInvite, resendInvite,
     }}>
       {children}
     </LumaContext.Provider>

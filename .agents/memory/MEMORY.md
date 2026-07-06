@@ -1,0 +1,1 @@
+- [LUMA color palette lever](luma-color-palette.md) — single-file `constants/colors.ts` edit ripples the whole 15-screen app since every screen imports the shared `C` object.

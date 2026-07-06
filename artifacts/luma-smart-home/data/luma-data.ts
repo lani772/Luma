@@ -73,6 +73,173 @@ export interface User {
   lastLogin: string;
 }
 
+export type LumaRole = "owner" | "admin" | "member" | "guest";
+
+export interface RoleDef {
+  label: string;
+  color: string;
+  bg: string;
+  icon: string;
+  rank: number;
+}
+
+export const LUMA_ROLES: Record<LumaRole, RoleDef> = {
+  owner: { label: "Owner", color: "#f59e0b", bg: "rgba(245,158,11,0.18)", icon: "star", rank: 0 },
+  admin: { label: "Admin", color: "#7c3aed", bg: "rgba(124,58,237,0.18)", icon: "shield", rank: 1 },
+  member: { label: "Member", color: "#06b6d4", bg: "rgba(6,182,212,0.18)", icon: "user", rank: 2 },
+  guest: { label: "Guest", color: "#9ca3af", bg: "rgba(156,163,175,0.15)", icon: "link", rank: 3 },
+};
+
+export interface PermDef {
+  key: string;
+  icon: string;
+  label: string;
+  desc: string;
+}
+
+export const PERMS_DEF: PermDef[] = [
+  { key: "lamps", icon: "sun", label: "Lamps", desc: "Turn on/off, dim, color" },
+  { key: "energy", icon: "zap", label: "Energy", desc: "View consumption & cost" },
+  { key: "sched", icon: "clock", label: "Schedule", desc: "Create automations" },
+  { key: "users", icon: "users", label: "Users", desc: "Invite & manage" },
+  { key: "cfg", icon: "settings", label: "Settings", desc: "System configuration" },
+  { key: "logs", icon: "list", label: "Logs", desc: "Activity history" },
+];
+
+export interface LumaUser {
+  id: number;
+  name: string;
+  email: string;
+  role: LumaRole;
+  avatarInit: string;
+  avatarIdx: number;
+  online: boolean;
+  seen: string;
+  joined: string;
+  acts: number;
+  lampIds: string[];
+  perms: Record<string, boolean>;
+  exp?: string;
+}
+
+export const LUMA_INITIAL_USERS: LumaUser[] = [
+  { id: 1, name: "Umurage K.", email: "umurage@luma.rw", role: "owner", avatarInit: "UK", avatarIdx: 0, online: true, seen: "Now", joined: "Jan 2025", acts: 47, lampIds: ["L001", "L002", "L003", "L004", "L005", "L006"], perms: { lamps: true, energy: true, sched: true, users: true, cfg: true, logs: true } },
+  { id: 2, name: "Alice M.", email: "alice@luma.rw", role: "admin", avatarInit: "AM", avatarIdx: 1, online: true, seen: "2m ago", joined: "Mar 2025", acts: 31, lampIds: ["L001", "L002", "L003", "L004", "L005", "L006"], perms: { lamps: true, energy: true, sched: true, users: true, cfg: false, logs: true } },
+  { id: 3, name: "Bob N.", email: "bob@luma.rw", role: "member", avatarInit: "BN", avatarIdx: 2, online: false, seen: "1h ago", joined: "May 2025", acts: 18, lampIds: ["L001", "L003", "L004"], perms: { lamps: true, energy: true, sched: false, users: false, cfg: false, logs: false } },
+  { id: 4, name: "Claire R.", email: "claire@luma.rw", role: "member", avatarInit: "CR", avatarIdx: 3, online: true, seen: "15m ago", joined: "Jun 2025", acts: 12, lampIds: ["L001", "L002", "L005"], perms: { lamps: true, energy: false, sched: false, users: false, cfg: false, logs: false } },
+  { id: 5, name: "David P.", email: "david@guest.rw", role: "guest", avatarInit: "DP", avatarIdx: 4, online: false, seen: "2d ago", joined: "Jun 2026", acts: 3, lampIds: ["L001"], perms: { lamps: true, energy: false, sched: false, users: false, cfg: false, logs: false }, exp: "Jun 30" },
+];
+
+export interface UserActivityItem {
+  uid: number;
+  action: string;
+  target: string;
+  time: string;
+  icon: string;
+  color: string;
+}
+
+export const USER_ACTIVITY: UserActivityItem[] = [
+  { uid: 2, action: "turned on", target: "Kitchen Downlight", time: "2m ago", icon: "sun", color: "#10b981" },
+  { uid: 4, action: "dimmed to 60%", target: "Living Room Main", time: "14m ago", icon: "sunset", color: "#f59e0b" },
+  { uid: 1, action: "set schedule", target: "Bedroom Ceiling", time: "1h ago", icon: "clock", color: "#7c3aed" },
+  { uid: 3, action: "turned off", target: "Study Desk Lamp", time: "2h ago", icon: "sun", color: "#ef4444" },
+  { uid: 2, action: "invited user", target: "David P. (Guest)", time: "3h ago", icon: "user-plus", color: "#06b6d4" },
+  { uid: 1, action: "role changed", target: "Alice → Admin", time: "5h ago", icon: "shield", color: "#a78bfa" },
+  { uid: 3, action: "adjusted color", target: "Kitchen Downlight", time: "2d ago", icon: "droplet", color: "#ec4899" },
+  { uid: 5, action: "turned on", target: "Living Room Main", time: "2d ago", icon: "sun", color: "#10b981" },
+];
+
+export interface Invite {
+  id: string;
+  email: string;
+  role: LumaRole;
+  sent: string;
+  exp: string;
+}
+
+export const INITIAL_INVITES: Invite[] = [
+  { id: "i1", email: "emma@kigali.rw", role: "member", sent: "2h ago", exp: "Jun 30" },
+  { id: "i2", email: "john@rw.rw", role: "guest", sent: "1d ago", exp: "Jun 25" },
+];
+
+export interface HourlyPoint { t: string; kwh?: number; cost?: number; forecast?: number; w?: number }
+
+export const ENERGY_TODAY: HourlyPoint[] = [
+  { t: "6AM", kwh: 0.8, cost: 0.10 }, { t: "8AM", kwh: 2.1, cost: 0.25 },
+  { t: "10AM", kwh: 1.4, cost: 0.17 }, { t: "12PM", kwh: 3.2, cost: 0.38 },
+  { t: "2PM", kwh: 2.8, cost: 0.34 }, { t: "4PM", kwh: 2.6, cost: 0.31 },
+  { t: "6PM", kwh: 4.5, cost: 0.54 }, { t: "8PM", kwh: 5.1, cost: 0.61 },
+  { t: "10PM", kwh: 3.0, cost: 0.36 },
+];
+
+export const HOURLY_WATTS: HourlyPoint[] = [
+  { t: "6AM", w: 45 }, { t: "8AM", w: 120 }, { t: "10AM", w: 85 },
+  { t: "12PM", w: 200 }, { t: "2PM", w: 175 }, { t: "4PM", w: 160 },
+  { t: "6PM", w: 280 }, { t: "8PM", w: 320 }, { t: "10PM", w: 190 },
+];
+
+export const ENERGY_WEEK_FORECAST: HourlyPoint[] = [
+  { t: "Mon", kwh: 8.2, forecast: 9 }, { t: "Tue", kwh: 11.5, forecast: 11 },
+  { t: "Wed", kwh: 9.8, forecast: 10 }, { t: "Thu", kwh: 13.2, forecast: 13 },
+  { t: "Fri", kwh: 10.5, forecast: 11 }, { t: "Sat", kwh: 16.8, forecast: 16 },
+  { t: "Sun", kwh: 11.1, forecast: 12 },
+];
+
+export const ENERGY_MONTH_FORECAST: HourlyPoint[] = [
+  { t: "W1", kwh: 58, forecast: 60 }, { t: "W2", kwh: 72, forecast: 70 },
+  { t: "W3", kwh: 63, forecast: 65 }, { t: "W4", kwh: 81, forecast: 80 },
+];
+
+export interface LampAnalytics {
+  lampId: string;
+  name: string;
+  room: string;
+  kwh: number;
+  cost: number;
+  voltage: number;
+  mA: number;
+  w: number;
+  eff: number;
+  on: boolean;
+  color: string;
+}
+
+export const LAMP_ANALYTICS: LampAnalytics[] = [
+  { lampId: "L001", name: "Living Room Main", room: "Living Room", kwh: 14.2, cost: 1.70, voltage: 230, mA: 39, w: 9, eff: 88, on: true, color: "#7c3aed" },
+  { lampId: "L002", name: "Bedroom Ceiling", room: "Bedroom", kwh: 8.1, cost: 0.97, voltage: 230, mA: 0, w: 0, eff: 92, on: true, color: "#10b981" },
+  { lampId: "L003", name: "Kitchen Downlight", room: "Kitchen", kwh: 11.4, cost: 1.37, voltage: 230, mA: 26, w: 6, eff: 95, on: true, color: "#f59e0b" },
+  { lampId: "L004", name: "Front Porch", room: "Entrance", kwh: 6.2, cost: 0.74, voltage: 0, mA: 0, w: 0, eff: 78, on: false, color: "#ef4444" },
+  { lampId: "L005", name: "Study Desk Lamp", room: "Study", kwh: 19.8, cost: 2.38, voltage: 230, mA: 52, w: 12, eff: 85, on: true, color: "#06b6d4" },
+  { lampId: "L006", name: "Garage Floodlight", room: "Garage", kwh: 3.1, cost: 0.37, voltage: 230, mA: 0, w: 0, eff: 90, on: true, color: "#8b5cf6" },
+];
+
+export function effColor(eff: number): string {
+  return eff >= 90 ? "#10b981" : eff >= 85 ? "#06b6d4" : eff >= 80 ? "#f59e0b" : "#ef4444";
+}
+
+export function effGrade(eff: number): string {
+  return eff >= 93 ? "A+" : eff >= 88 ? "A" : eff >= 82 ? "B+" : eff >= 75 ? "B" : "C";
+}
+
+export interface EnergyInsight {
+  icon: string;
+  title: string;
+  tag: string;
+  color: string;
+  text: string;
+}
+
+export const ENERGY_INSIGHTS: EnergyInsight[] = [
+  { icon: "alert-triangle", title: "High Consumer Alert", tag: "Action needed", color: "#f59e0b", text: "Study Desk Lamp consumes 31.5% of total energy. Consider scheduling off-hours." },
+  { icon: "check-circle", title: "Efficiency Improved", tag: "Great", color: "#10b981", text: "Kitchen Downlight achieved 95% efficiency — best performer this month." },
+  { icon: "search", title: "Standby Drain", tag: "Investigate", color: "#06b6d4", text: "Front Porch logged $0.74 while showing 0V. Possible standby current or data lag." },
+  { icon: "trending-down", title: "Cost Saving Trend", tag: "On track", color: "#7c3aed", text: "Month-over-month you're trending 8.3% lower. Projected to save $0.89 by Jun 30." },
+  { icon: "sun", title: "Optimize Schedule", tag: "Tip", color: "#6366f1", text: "Bedroom Ceiling at 0W but still on. Automate off between midnight–6AM." },
+];
+
+export const SAVINGS_SUMMARY = { thisMonth: 0.89, projected: 1.34, annual: 16.1 };
+
 export interface LumaNotification {
   id: number;
   cat: string;
