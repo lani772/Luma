@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityLog,
   AutomationRule,
@@ -15,6 +15,7 @@ import {
   LumaUser,
   LUMA_INITIAL_USERS,
   PENDING_REQUESTS,
+  PERMS_DEF,
   PendingRequest,
   SCENE_CONFIGS,
   Scene,
@@ -71,6 +72,18 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   const [lampActivity] = useState<Record<string, ActivityLog[]>>(LAMP_ACTIVITY);
   const [lumaUsers, setLumaUsers] = useState<LumaUser[]>(LUMA_INITIAL_USERS);
   const [invites, setInvites] = useState<Invite[]>(INITIAL_INVITES);
+
+  // Always-current refs so callbacks never have stale closures
+  const lumaUsersRef = useRef(lumaUsers);
+  useEffect(() => { lumaUsersRef.current = lumaUsers; }, [lumaUsers]);
+  const lampsRef = useRef(lamps);
+  useEffect(() => { lampsRef.current = lamps; }, [lamps]);
+  const notifIdRef = useRef(INITIAL_NOTIFICATIONS.length + 1);
+
+  const pushNotif = useCallback((notif: Omit<LumaNotification, "id" | "read" | "archived">) => {
+    const id = notifIdRef.current++;
+    setNotifications(prev => [{ ...notif, id, read: false, archived: false }, ...prev]);
+  }, []);
 
   const updateLamp = useCallback((id: string, patch: Partial<Lamp>) => {
     setLamps(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
@@ -157,35 +170,72 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const removeLumaUser = useCallback((id: number) => {
+    const user = lumaUsersRef.current.find(u => u.id === id);
     setLumaUsers(prev => prev.filter(u => u.id !== id || u.role === "owner"));
-  }, []);
+    if (user && user.role !== "owner") {
+      pushNotif({ cat: "users", icon: "user-minus", title: `${user.name} removed from home`, time: "Just now" });
+    }
+  }, [pushNotif]);
 
   const togglePermCell = useCallback((userId: number, permKey: string) => {
+    const user = lumaUsersRef.current.find(u => u.id === userId);
+    const permLabel = PERMS_DEF.find(p => p.key === permKey)?.label ?? permKey;
+    let newVal = false;
     setLumaUsers(prev => prev.map(u => {
       if (u.id !== userId || u.role === "owner") return u;
-      return { ...u, perms: { ...u.perms, [permKey]: !u.perms[permKey] } };
+      newVal = !u.perms[permKey];
+      return { ...u, perms: { ...u.perms, [permKey]: newVal } };
     }));
-  }, []);
+    if (user && user.role !== "owner") {
+      pushNotif({
+        cat: "users",
+        icon: newVal ? "unlock" : "lock",
+        title: `${user.name}: ${permLabel} access ${newVal ? "granted" : "revoked"}`,
+        time: "Just now",
+      });
+    }
+  }, [pushNotif]);
 
   const toggleLampCell = useCallback((userId: number, lampId: string) => {
+    const user = lumaUsersRef.current.find(u => u.id === userId);
+    const lampName = lampsRef.current.find(l => l.id === lampId)?.name ?? lampId;
+    let granted = false;
     setLumaUsers(prev => prev.map(u => {
       if (u.id !== userId || u.role === "owner") return u;
       const has = u.lampIds.includes(lampId);
+      granted = !has;
       return { ...u, lampIds: has ? u.lampIds.filter(l => l !== lampId) : [...u.lampIds, lampId] };
     }));
-  }, []);
+    if (user && user.role !== "owner") {
+      pushNotif({
+        cat: "users",
+        icon: granted ? "sun" : "moon",
+        title: `${user.name}: "${lampName}" ${granted ? "unlocked" : "removed"}`,
+        time: "Just now",
+      });
+    }
+  }, [pushNotif]);
 
   const sendInvite = useCallback((email: string, role: LumaRole) => {
     setInvites(prev => [...prev, { id: `i${Date.now()}`, email, role, sent: "Just now", exp: "In 7 days" }]);
-  }, []);
+    pushNotif({ cat: "users", icon: "mail", title: `Invite sent to ${email} (${role})`, time: "Just now" });
+  }, [pushNotif]);
 
   const cancelInvite = useCallback((id: string) => {
+    const invite = invites.find(i => i.id === id);
     setInvites(prev => prev.filter(i => i.id !== id));
-  }, []);
+    if (invite) {
+      pushNotif({ cat: "users", icon: "x-circle", title: `Invite to ${invite.email} cancelled`, time: "Just now" });
+    }
+  }, [invites, pushNotif]);
 
   const resendInvite = useCallback((id: string) => {
+    const invite = invites.find(i => i.id === id);
     setInvites(prev => prev.map(i => i.id === id ? { ...i, sent: "Just now" } : i));
-  }, []);
+    if (invite) {
+      pushNotif({ cat: "users", icon: "send", title: `Invite resent to ${invite.email}`, time: "Just now" });
+    }
+  }, [invites, pushNotif]);
 
   return (
     <LumaContext.Provider value={{

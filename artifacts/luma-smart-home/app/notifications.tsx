@@ -7,10 +7,10 @@ import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
 import { LumaNotification } from "@/data/luma-data";
 
-const CATS = ["all", "offline", "schedule", "timer", "energy", "firmware", "security"];
+const CATS = ["all", "users", "offline", "schedule", "timer", "energy", "firmware", "security"];
 
 const CAT_COLORS: Record<string, string> = {
-  offline: C.off, schedule: C.accentL, timer: C.warn,
+  users: C.indigo, offline: C.off, schedule: C.accentL, timer: C.warn,
   energy: C.purple, firmware: C.teal, security: C.rose,
 };
 
