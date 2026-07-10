@@ -7,6 +7,8 @@ import {
   INITIAL_SCENES,
   INITIAL_USERS,
   INITIAL_INVITES,
+  INITIAL_MICROCONTROLLERS,
+  INITIAL_MC_DEVICES,
   Invite,
   LAMP_AUTOMATIONS,
   Lamp,
@@ -14,6 +16,8 @@ import {
   LumaRole,
   LumaUser,
   LUMA_INITIAL_USERS,
+  MCDevice,
+  Microcontroller,
   PENDING_REQUESTS,
   PERMS_DEF,
   PendingRequest,
@@ -57,6 +61,16 @@ interface LumaContextType {
   sendInvite: (email: string, role: LumaRole) => void;
   cancelInvite: (id: string) => void;
   resendInvite: (id: string) => void;
+  // Microcontrollers
+  microcontrollers: Microcontroller[];
+  mcDevices: MCDevice[];
+  addMicrocontroller: (mc: Omit<Microcontroller, "id">) => void;
+  updateMicrocontroller: (id: string, patch: Partial<Microcontroller>) => void;
+  deleteMicrocontroller: (id: string) => void;
+  addMCDevice: (device: Omit<MCDevice, "id">) => void;
+  updateMCDevice: (id: string, patch: Partial<MCDevice>) => void;
+  deleteMCDevice: (id: string) => void;
+  toggleMCDevice: (id: string) => void;
 }
 
 const LumaContext = createContext<LumaContextType | null>(null);
@@ -72,6 +86,8 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   const [lampActivity] = useState<Record<string, ActivityLog[]>>(LAMP_ACTIVITY);
   const [lumaUsers, setLumaUsers] = useState<LumaUser[]>(LUMA_INITIAL_USERS);
   const [invites, setInvites] = useState<Invite[]>(INITIAL_INVITES);
+  const [microcontrollers, setMicrocontrollers] = useState<Microcontroller[]>(INITIAL_MICROCONTROLLERS);
+  const [mcDevices, setMCDevices] = useState<MCDevice[]>(INITIAL_MC_DEVICES);
 
   // Always-current refs so callbacks never have stale closures
   const lumaUsersRef = useRef(lumaUsers);
@@ -237,6 +253,36 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
     }
   }, [invites, pushNotif]);
 
+  // ── Microcontroller actions ────────────────────────────────────
+  const addMicrocontroller = useCallback((mc: Omit<Microcontroller, "id">) => {
+    setMicrocontrollers(prev => [...prev, { ...mc, id: `MC${Date.now()}` }]);
+  }, []);
+
+  const updateMicrocontroller = useCallback((id: string, patch: Partial<Microcontroller>) => {
+    setMicrocontrollers(prev => prev.map(mc => mc.id === id ? { ...mc, ...patch } : mc));
+  }, []);
+
+  const deleteMicrocontroller = useCallback((id: string) => {
+    setMicrocontrollers(prev => prev.filter(mc => mc.id !== id));
+    setMCDevices(prev => prev.filter(d => d.mcId !== id));
+  }, []);
+
+  const addMCDevice = useCallback((device: Omit<MCDevice, "id">) => {
+    setMCDevices(prev => [...prev, { ...device, id: `MCD${Date.now()}` }]);
+  }, []);
+
+  const updateMCDevice = useCallback((id: string, patch: Partial<MCDevice>) => {
+    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d));
+  }, []);
+
+  const deleteMCDevice = useCallback((id: string) => {
+    setMCDevices(prev => prev.filter(d => d.id !== id));
+  }, []);
+
+  const toggleMCDevice = useCallback((id: string) => {
+    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, on: !d.on } : d));
+  }, []);
+
   return (
     <LumaContext.Provider value={{
       lamps, scenes, users, notifications, pendingRequests, approvedRequests,
@@ -250,6 +296,9 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
       lumaUsers, invites,
       removeLumaUser, togglePermCell, toggleLampCell,
       sendInvite, cancelInvite, resendInvite,
+      microcontrollers, mcDevices,
+      addMicrocontroller, updateMicrocontroller, deleteMicrocontroller,
+      addMCDevice, updateMCDevice, deleteMCDevice, toggleMCDevice,
     }}>
       {children}
     </LumaContext.Provider>

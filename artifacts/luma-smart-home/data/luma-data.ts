@@ -519,3 +519,141 @@ export function roleColor(role: string): string {
   const m: Record<string, string> = { Admin: "#2563EB", Manager: "#22C55E", Operator: "#7C3AED", Viewer: "#D4A017" };
   return m[role] || "#4B5A6E";
 }
+
+// ── Microcontrollers ─────────────────────────────────────────────────────────
+
+export const ESP32_GPIO_PINS = [2, 4, 5, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33];
+
+export const ESP32_MODELS = [
+  "ESP32 (Generic)", "ESP32-S2", "ESP32-S3",
+  "ESP32-C3", "ESP32-C6", "ESP32-WROOM-32", "ESP32-WROVER",
+];
+
+export const MC_CONNECTION_METHODS = ["Wi-Fi", "Ethernet", "Bluetooth LE"];
+
+export const MC_LAMP_ICONS = ["sun", "zap", "home", "star", "moon", "coffee", "droplet", "feather"];
+
+export const MC_STARTUP_STATES: { value: "on" | "off" | "restore"; label: string }[] = [
+  { value: "on", label: "Always ON" },
+  { value: "off", label: "Always OFF" },
+  { value: "restore", label: "Restore Previous" },
+];
+
+export interface MCDevice {
+  id: string;
+  mcId: string;
+  name: string;
+  description: string;
+  room: string;
+  icon: string;
+  gpioPin: number;
+  activeHigh: boolean;
+  startupState: "on" | "off" | "restore";
+  on: boolean;
+}
+
+export interface Microcontroller {
+  id: string;
+  name: string;
+  description: string;
+  room: string;
+  model: string;
+  firmware: string;
+  mac: string;
+  deviceId: string;
+  secretKey: string;
+  connectionMethod: string;
+  wifiSsid: string;
+  online: boolean;
+  lastConnected: number;
+  ipAddress: string;
+  cpuUsage: number;
+  memoryUsage: number;
+  flashUsage: number;
+  uptime: string;
+  restartCount: number;
+  temperature: number;
+  wifiSignal: number;
+  wifiChannel: number;
+  bluetoothEnabled: boolean;
+  httpEnabled: boolean;
+}
+
+const _MC_N = Date.now();
+
+export const INITIAL_MICROCONTROLLERS: Microcontroller[] = [
+  {
+    id: "MC001",
+    name: "Living Room Hub",
+    description: "Main controller for living room lighting",
+    room: "Living Room",
+    model: "ESP32-WROOM-32",
+    firmware: "v2.4.1",
+    mac: "A4:CF:12:3D:7E:A1",
+    deviceId: "MC-LR-001",
+    secretKey: "sk_lr_abc123def456",
+    connectionMethod: "Wi-Fi",
+    wifiSsid: "SmartHome_2G",
+    online: true,
+    lastConnected: _MC_N - 30000,
+    ipAddress: "192.168.1.50",
+    cpuUsage: 14,
+    memoryUsage: 38,
+    flashUsage: 52,
+    uptime: "12d 4h",
+    restartCount: 2,
+    temperature: 42,
+    wifiSignal: -52,
+    wifiChannel: 6,
+    bluetoothEnabled: false,
+    httpEnabled: true,
+  },
+  {
+    id: "MC002",
+    name: "Bedroom Hub",
+    description: "Bedroom lighting and automation controller",
+    room: "Bedroom",
+    model: "ESP32-S3",
+    firmware: "v2.3.8",
+    mac: "A4:CF:12:3D:7E:B2",
+    deviceId: "MC-BD-002",
+    secretKey: "sk_bd_xyz789uvw012",
+    connectionMethod: "Wi-Fi",
+    wifiSsid: "SmartHome_2G",
+    online: false,
+    lastConnected: _MC_N - 7200000,
+    ipAddress: "—",
+    cpuUsage: 0,
+    memoryUsage: 0,
+    flashUsage: 48,
+    uptime: "—",
+    restartCount: 7,
+    temperature: 0,
+    wifiSignal: -80,
+    wifiChannel: 6,
+    bluetoothEnabled: false,
+    httpEnabled: true,
+  },
+];
+
+export const INITIAL_MC_DEVICES: MCDevice[] = [
+  {
+    id: "MCD001", mcId: "MC001",
+    name: "Ceiling Light", description: "Main ceiling lamp relay",
+    room: "Living Room", icon: "sun",
+    gpioPin: 2, activeHigh: true, startupState: "restore", on: true,
+  },
+  {
+    id: "MCD002", mcId: "MC001",
+    name: "Floor Lamp", description: "Corner floor lamp relay",
+    room: "Living Room", icon: "sun",
+    gpioPin: 4, activeHigh: true, startupState: "off", on: false,
+  },
+];
+
+export const MC_FIRMWARE_HISTORY = [
+  { version: "v2.4.1", date: "Jun 15 2026", notes: "Bug fixes, improved MQTT stability" },
+  { version: "v2.4.0", date: "May 28 2026", notes: "Added OTA support, new GPIO API" },
+  { version: "v2.3.8", date: "Apr 10 2026", notes: "Security patch, memory optimization" },
+  { version: "v2.3.5", date: "Mar 02 2026", notes: "Initial stable release" },
+];

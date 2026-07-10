@@ -84,6 +84,11 @@ function RootLayoutNav() {
         <Stack.Screen name="access" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="roles" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="settings" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="microcontrollers" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="microcontroller-register" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="microcontroller-workspace" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mc-device-register" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mc-device" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <InstallBanner />
     </>

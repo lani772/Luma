@@ -7,6 +7,7 @@ import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
 
 const MODULES = [
+  { id: "microcontrollers", label: "Microcontrollers", icon: "cpu", desc: "ESP32 hubs & GPIO devices", color: "#f97316" },
   { id: "mqtt", label: "MQTT Monitor", icon: "radio", desc: "Broker, topics & device states", color: C.teal },
   { id: "health", label: "Device Health", icon: "activity", desc: "RSSI, CPU, memory & uptime", color: C.on },
   { id: "scenes", label: "Scenes", icon: "sun", desc: "Lighting presets & custom", color: C.purple },
