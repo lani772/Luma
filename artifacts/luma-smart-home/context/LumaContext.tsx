@@ -38,6 +38,8 @@ interface LumaContextType {
   lampAutomations: Record<string, AutomationRule[]>;
   lampActivity: Record<string, ActivityLog[]>;
   updateLamp: (id: string, patch: Partial<Lamp>) => void;
+  addLamp: (lamp: Omit<Lamp, "id">) => void;
+  deleteLamp: (id: string) => void;
   activateScene: (id: string) => void;
   toggleUser: (id: number) => void;
   removeUser: (id: number) => void;
@@ -103,6 +105,15 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
 
   const updateLamp = useCallback((id: string, patch: Partial<Lamp>) => {
     setLamps(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+  }, []);
+
+  const addLamp = useCallback((lamp: Omit<Lamp, "id">) => {
+    const id = `L${Date.now()}`;
+    setLamps(prev => [...prev, { ...lamp, id }]);
+  }, []);
+
+  const deleteLamp = useCallback((id: string) => {
+    setLamps(prev => prev.filter(l => l.id !== id));
   }, []);
 
   const activateScene = useCallback((id: string) => {
@@ -287,7 +298,7 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
     <LumaContext.Provider value={{
       lamps, scenes, users, notifications, pendingRequests, approvedRequests,
       lampAutomations, lampActivity,
-      updateLamp, activateScene,
+      updateLamp, addLamp, deleteLamp, activateScene,
       toggleUser, removeUser, addUser,
       markAllNotifRead, archiveNotif, markNotifRead,
       approveRequest, rejectRequest,
