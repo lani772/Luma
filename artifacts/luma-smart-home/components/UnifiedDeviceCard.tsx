@@ -24,6 +24,16 @@ import { C } from "@/constants/colors";
 import { Lamp, MCDevice, Microcontroller, fmtCountdown, timeAgo } from "@/data/luma-data";
 import LumaToggle from "./LumaToggle";
 import TimerSheet from "./TimerSheet";
+import { useMQTTComms } from "@/context/MQTTContext";
+import type { ActiveChannel } from "@/src/modules/mqtt";
+
+const CHANNEL_COLOR: Record<ActiveChannel, string> = {
+  cloud: "#22c55e",
+  local: "#2dd4bf",
+  http: "#f59e0b",
+  bluetooth: "#93c5fd",
+  offline: "#ef4444",
+};
 
 // ─── Prop shapes ──────────────────────────────────────────────────────────────
 
@@ -107,6 +117,8 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
 
   const mqttOk  = lamp.mqttStatus === "connected";
   const brtFill = `${brightness}%`;
+  const { status: commsStatus } = useMQTTComms();
+  const channelColor = CHANNEL_COLOR[commsStatus.activeChannel];
 
   return (
     <>
@@ -163,6 +175,10 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
             {/* Firmware */}
             <View style={s.badge}>
               <Text style={s.badgeText}>FW {lamp.firmware}</Text>
+            </View>
+            {/* Active comms channel (cloud/local MQTT → HTTP → Bluetooth → offline) */}
+            <View style={[s.badge, { backgroundColor: channelColor + "12", borderColor: channelColor + "28" }]}>
+              <Text style={[s.badgeText, { color: channelColor }]}>{commsStatus.activeChannel.toUpperCase()}</Text>
             </View>
             {/* Power */}
             {lamp.power > 0 && lamp.on && (

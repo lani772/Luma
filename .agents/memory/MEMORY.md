@@ -1,2 +1,4 @@
 - [LUMA color palette lever](luma-color-palette.md) — single-file `constants/colors.ts` edit ripples the whole 15-screen app since every screen imports the shared `C` object.
 - [Internal API Communication Framework](internal-api-framework.md) — 8-engine message bus; all inter-engine traffic routes through the gateway; mobile uses inline UUID (no expo-crypto).
+- [Vendoring native RN libs in pnpm](mqtt-native-vendoring.md) — vendored workspace package needs react/react-native as devDependencies too, or TS can't resolve peer types.
+- [LUMA comms architecture](luma-comms-architecture.md) — new discovery/Bluetooth features should wrap wifi-engine/p2p-engine, not reimplement; useEngines hook and DeviceCard.tsx are dead code.

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
 import BarChart from "@/components/BarChart";
+import CommsStatusPanel from "@/components/CommsStatusPanel";
 import { ACTIVITY_LOG, ENERGY_WEEKLY, ROOMS, timeAgo } from "@/data/luma-data";
 
 const QUICK_SCENES = ["morning", "movie", "reading", "sleep"];
@@ -66,6 +67,10 @@ export default function DashboardScreen() {
           <StatCard label="Power" value={`${totalPower}W`} max={100} color={C.gold} icon="activity" />
           <StatCard label="Online" value={String(onlineLamps)} max={lamps.length} color={C.teal} icon="wifi" />
         </View>
+
+        {/* Communication engine status */}
+        <SectionLabel>Connectivity</SectionLabel>
+        <CommsStatusPanel />
 
         {/* Quick Scenes */}
         <SectionLabel>Quick Scenes</SectionLabel>

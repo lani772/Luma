@@ -1,0 +1,35 @@
+{
+  "name": "@arduino/react-native-mqtt-client",
+  "version": "0.3.2",
+  "description": "MQTT client for React Native (vendored into the workspace for native source + JS API; build tooling stripped — see README-VENDORED.md)",
+  "main": "src/index.tsx",
+  "react-native": "src/index",
+  "source": "./src/index.tsx",
+  "types": "src/index.tsx",
+  "files": [
+    "src",
+    "android",
+    "ios",
+    "react-native-mqtt-client.podspec"
+  ],
+  "keywords": [
+    "react-native",
+    "ios",
+    "android"
+  ],
+  "author": "Arduino (https://github.com/arduino)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arduino/react-native-mqtt-client.git"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/arduino/react-native-mqtt-client#readme",
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "react": "catalog:",
+    "react-native": "0.81.5"
+  }
+}

@@ -18,6 +18,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InstallBanner } from "@/components/InstallBanner";
 import { LumaProvider } from "@/context/LumaContext";
 import { ConnectivityProvider } from "@/context/ConnectivityContext";
+import { MQTTProvider } from "@/context/MQTTContext";
 import { C } from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
@@ -132,7 +133,9 @@ export default function RootLayout() {
             <KeyboardProvider>
               <LumaProvider>
                 <ConnectivityProvider>
-                  <RootLayoutNav />
+                  <MQTTProvider>
+                    <RootLayoutNav />
+                  </MQTTProvider>
                 </ConnectivityProvider>
               </LumaProvider>
             </KeyboardProvider>

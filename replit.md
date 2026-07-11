@@ -27,7 +27,11 @@ _Populate as you build — short repo map plus pointers to the source-of-truth f
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **MQTT communication engine** (`artifacts/luma-smart-home/src/modules/mqtt/`) — production-grade multi-connection MQTT manager (`MQTTManager`) with priority failover Cloud MQTT → Local MQTT → HTTP → Bluetooth mesh → offline queue. Built on the vendored `lib/react-native-mqtt-client` (Arduino's real native Kotlin/Swift MQTT library, `@arduino/react-native-mqtt-client`).
+  - **This container cannot build or run the native transport.** Native modules only load inside a custom Expo dev client (`expo prebuild` + `eas build --profile development`, or a local Android Studio/Xcode build) — never inside Expo Go, and this environment has no Android SDK/macOS to build one. `MQTTService.ts` detects the native module at runtime (`NativeModules.MqttClient`) and falls back to bridging the existing simulated `engines/mqtt-client-engine.ts` when it's absent. The fallback is never silent — it fires `MQTT_EVENT.NATIVE_TRANSPORT_UNAVAILABLE`, surfaced as a visible banner in the dashboard's Communication Engine panel.
+  - Discovery (`MQTTDiscovery.ts`) wraps the existing `mobileWiFiEngine`'s simulated mDNS/UDP discovery rather than reimplementing scanning; the Bluetooth channel delegates to the existing `mobileP2PEngine` mesh rather than a real BLE library (none is installed).
+  - Security (`MQTTSecurity.ts`) issues JWT-*shaped* device tokens and signs commands with a keyed SHA-256 hash (`expo-crypto`) + nonce/timestamp replay protection — explicitly not RFC 2104 HMAC, since no HMAC primitive is available without heavier native crypto. Labeled as such in code comments to avoid overclaiming.
+  - Wired into the app via `context/MQTTContext.tsx` (kept separate from `LumaContext` to avoid bloating it), mounted in `app/_layout.tsx`, surfaced via `CommsStatusPanel` on the dashboard and a live channel badge on `DeviceCard`.
 
 ## Product
 

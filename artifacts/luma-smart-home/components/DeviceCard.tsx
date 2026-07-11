@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, GestureResponderEvent, Platform, PanResponder, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { C } from "@/constants/colors";
 import { Lamp, fmtCountdown, timeAgo } from "@/data/luma-data";
+import { useMQTTComms } from "@/context/MQTTContext";
 import LumaToggle from "./LumaToggle";
 import TimerSheet from "./TimerSheet";
 
@@ -79,6 +80,15 @@ export default function DeviceCard({ lamp, onUpdate }: DeviceCardProps) {
 
   const mqttOk = lamp.mqttStatus === "connected";
   const brtFill = `${brightness}%`;
+  const { status: commsStatus } = useMQTTComms();
+  const channelColor =
+    commsStatus.activeChannel === "cloud" || commsStatus.activeChannel === "local"
+      ? C.on
+      : commsStatus.activeChannel === "http"
+      ? C.warn
+      : commsStatus.activeChannel === "bluetooth"
+      ? "#93c5fd"
+      : C.off;
 
   return (
     <>
@@ -125,6 +135,11 @@ export default function DeviceCard({ lamp, onUpdate }: DeviceCardProps) {
             </View>
             <View style={[styles.badge]}>
               <Text style={styles.badgeText}>FW {lamp.firmware}</Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: channelColor + "12", borderColor: channelColor + "28" }]}>
+              <Text style={[styles.badgeText, { color: channelColor }]}>
+                {commsStatus.activeChannel.toUpperCase()}
+              </Text>
             </View>
             {lamp.power > 0 && lamp.on && (
               <View style={[styles.badge, { backgroundColor: C.purple + "12", borderColor: C.purple + "28" }]}>
