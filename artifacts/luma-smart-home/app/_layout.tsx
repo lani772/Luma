@@ -17,6 +17,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InstallBanner } from "@/components/InstallBanner";
 import { LumaProvider } from "@/context/LumaContext";
+import { ConnectivityProvider } from "@/context/ConnectivityContext";
 import { C } from "@/constants/colors";
 
 SplashScreen.preventAutoHideAsync();
@@ -92,6 +93,10 @@ function RootLayoutNav() {
         <Stack.Screen name="lamps-manager" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="lamp-add" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="device-register" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="connectivity" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="wifi-setup" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mesh" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="network-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <InstallBanner />
     </>
@@ -126,7 +131,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <LumaProvider>
-                <RootLayoutNav />
+                <ConnectivityProvider>
+                  <RootLayoutNav />
+                </ConnectivityProvider>
               </LumaProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

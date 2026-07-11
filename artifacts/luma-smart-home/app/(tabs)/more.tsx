@@ -7,17 +7,21 @@ import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
 
 const MODULES = [
-  { id: "microcontrollers", label: "Microcontrollers", icon: "cpu", desc: "ESP32 hubs & GPIO devices", color: "#f97316" },
-  { id: "lamps-manager", label: "Lamp Manager", icon: "zap", desc: "Add & manage smart lamps", color: "#FBBF24" },
-  { id: "mqtt", label: "MQTT Monitor", icon: "radio", desc: "Broker, topics & device states", color: C.teal },
-  { id: "health", label: "Device Health", icon: "activity", desc: "RSSI, CPU, memory & uptime", color: C.on },
-  { id: "scenes", label: "Scenes", icon: "sun", desc: "Lighting presets & custom", color: C.purple },
-  { id: "rooms", label: "Rooms", icon: "grid", desc: "Multi-room dashboard", color: C.accentL },
-  { id: "notifications", label: "Notifications", icon: "bell", desc: "Alerts & history", color: C.off },
-  { id: "activity", label: "Activity Log", icon: "list", desc: "Full audit trail", color: C.gold },
-  { id: "access", label: "Access Control", icon: "shield", desc: "Permissions & approvals", color: C.rose },
-  { id: "roles", label: "Role Manager", icon: "sliders", desc: "Permission matrix", color: "#A78BFA" },
-  { id: "settings", label: "Settings", icon: "settings", desc: "Profile & preferences", color: C.sec },
+  { id: "microcontrollers",  label: "Microcontrollers",   icon: "cpu",        desc: "ESP32 hubs & GPIO devices",          color: "#f97316" },
+  { id: "lamps-manager",     label: "Lamp Manager",        icon: "zap",        desc: "Add & manage smart lamps",           color: "#FBBF24" },
+  { id: "mqtt",              label: "MQTT Monitor",        icon: "radio",      desc: "Broker, topics & device states",     color: C.teal },
+  { id: "health",            label: "Device Health",       icon: "activity",   desc: "RSSI, CPU, memory & uptime",         color: C.on },
+  { id: "connectivity",      label: "Connectivity Hub",    icon: "wifi",       desc: "WiFi · Hotspot · Route · Recovery",  color: C.indigo },
+  { id: "wifi-setup",        label: "Device Setup",        icon: "bluetooth",  desc: "First-time ESP32 provisioning",      color: C.purple },
+  { id: "mesh",              label: "BT Mesh Network",     icon: "share-2",    desc: "Peers · Routes · Offline Queue",     color: "#7C3AED" },
+  { id: "network-monitor",   label: "Network Monitor",     icon: "bar-chart-2",desc: "Signal · Latency · Connectivity",    color: C.teal },
+  { id: "scenes",            label: "Scenes",              icon: "sun",        desc: "Lighting presets & custom",          color: C.purple },
+  { id: "rooms",             label: "Rooms",               icon: "grid",       desc: "Multi-room dashboard",               color: C.accentL },
+  { id: "notifications",     label: "Notifications",       icon: "bell",       desc: "Alerts & history",                   color: C.off },
+  { id: "activity",          label: "Activity Log",        icon: "list",       desc: "Full audit trail",                   color: C.gold },
+  { id: "access",            label: "Access Control",      icon: "shield",     desc: "Permissions & approvals",            color: C.rose },
+  { id: "roles",             label: "Role Manager",        icon: "sliders",    desc: "Permission matrix",                  color: "#A78BFA" },
+  { id: "settings",          label: "Settings",            icon: "settings",   desc: "Profile & preferences",              color: C.sec },
 ] as const;
 
 export default function MoreScreen() {
