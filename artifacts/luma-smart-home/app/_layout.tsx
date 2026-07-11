@@ -91,6 +91,7 @@ function RootLayoutNav() {
         <Stack.Screen name="mc-device" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="lamps-manager" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="lamp-add" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="device-register" options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <InstallBanner />
     </>

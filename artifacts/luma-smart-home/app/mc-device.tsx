@@ -8,7 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
-import { MC_LAMP_ICONS, MC_STARTUP_STATES } from "@/data/luma-data";
+import { MC_LAMP_ICONS, MC_STARTUP_STATES, timeAgo } from "@/data/luma-data";
 
 export default function MCDeviceScreen() {
   const insets = useSafeAreaInsets();
@@ -104,6 +104,10 @@ export default function MCDeviceScreen() {
                 <View style={[styles.statusDot, { backgroundColor: device.on ? C.on : C.mute2 }]} />
                 <Text style={[styles.statusPillText, { color: device.on ? C.on : C.mute }]}>{device.on ? "ON" : "OFF"}</Text>
               </View>
+              <View style={[styles.statusPill, { backgroundColor: mc.online ? C.on + "18" : C.off + "18", borderColor: mc.online ? C.on + "40" : C.off + "35", marginLeft: 6 }]}>
+                <View style={[styles.statusDot, { backgroundColor: mc.online ? C.on : C.off }]} />
+                <Text style={[styles.statusPillText, { color: mc.online ? C.on : C.off }]}>{mc.online ? "MC Online" : "MC Offline"}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -120,6 +124,12 @@ export default function MCDeviceScreen() {
           <InfoRow icon="terminal" label="OFF command" value={gpioCmd.off} mono />
           <Divider />
           <InfoRow icon="clock" label="Startup State" value={device.startupState === "on" ? "Always ON" : device.startupState === "off" ? "Always OFF" : "Restore Previous"} />
+          <Divider />
+          <InfoRow icon="cpu" label="Microcontroller" value={device.mcName ?? mc.name} />
+          <Divider />
+          <InfoRow icon="calendar" label="Registered" value={device.registrationDate ? new Date(device.registrationDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "—"} />
+          <Divider />
+          <InfoRow icon="refresh-cw" label="Last Updated" value={device.lastUpdated ? timeAgo(device.lastUpdated) : "—"} />
         </View>
 
         {/* Edit Settings */}

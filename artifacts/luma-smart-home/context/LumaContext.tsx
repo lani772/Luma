@@ -96,6 +96,10 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { lumaUsersRef.current = lumaUsers; }, [lumaUsers]);
   const lampsRef = useRef(lamps);
   useEffect(() => { lampsRef.current = lamps; }, [lamps]);
+  const mcDevicesRef = useRef(mcDevices);
+  useEffect(() => { mcDevicesRef.current = mcDevices; }, [mcDevices]);
+  const microcontrollersRef = useRef(microcontrollers);
+  useEffect(() => { microcontrollersRef.current = microcontrollers; }, [microcontrollers]);
   const notifIdRef = useRef(INITIAL_NOTIFICATIONS.length + 1);
 
   const pushNotif = useCallback((notif: Omit<LumaNotification, "id" | "read" | "archived">) => {
@@ -264,13 +268,30 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
     }
   }, [invites, pushNotif]);
 
-  // ── Microcontroller actions ────────────────────────────────────
+  // ── Microcontroller actions ─────────────────────────────────────────────
   const addMicrocontroller = useCallback((mc: Omit<Microcontroller, "id">) => {
-    setMicrocontrollers(prev => [...prev, { ...mc, id: `MC${Date.now()}` }]);
+    const now = Date.now();
+    setMicrocontrollers(prev => [...prev, {
+      ...mc,
+      id: `MC${now}`,
+      hardwareVersion: mc.hardwareVersion ?? "rev1.0",
+      configVersion: mc.configVersion ?? 0,
+      lastConfigUpdate: mc.lastConfigUpdate ?? now,
+      lastSync: mc.lastSync ?? 0,
+    }]);
   }, []);
 
   const updateMicrocontroller = useCallback((id: string, patch: Partial<Microcontroller>) => {
-    setMicrocontrollers(prev => prev.map(mc => mc.id === id ? { ...mc, ...patch } : mc));
+    const now = Date.now();
+    setMicrocontrollers(prev => prev.map(mc =>
+      mc.id === id
+        ? { ...mc, ...patch, configVersion: (mc.configVersion ?? 0) + 1, lastConfigUpdate: now }
+        : mc
+    ));
+    // Keep mcName denormalised in all child devices when MC is renamed
+    if (patch.name !== undefined) {
+      setMCDevices(prev => prev.map(d => d.mcId === id ? { ...d, mcName: patch.name! } : d));
+    }
   }, []);
 
   const deleteMicrocontroller = useCallback((id: string) => {
@@ -279,19 +300,52 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addMCDevice = useCallback((device: Omit<MCDevice, "id">) => {
-    setMCDevices(prev => [...prev, { ...device, id: `MCD${Date.now()}` }]);
+    const now = Date.now();
+    const mc = microcontrollersRef.current.find(m => m.id === device.mcId);
+    setMCDevices(prev => [...prev, {
+      ...device,
+      id: `MCD${now}`,
+      mcName: device.mcName ?? mc?.name ?? device.mcId,
+      registrationDate: device.registrationDate ?? now,
+      lastUpdated: now,
+    }]);
+    // Bump parent MC config version so OTA profile stays current
+    setMicrocontrollers(prev => prev.map(m =>
+      m.id === device.mcId
+        ? { ...m, configVersion: (m.configVersion ?? 0) + 1, lastConfigUpdate: now }
+        : m
+    ));
   }, []);
 
   const updateMCDevice = useCallback((id: string, patch: Partial<MCDevice>) => {
-    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d));
+    const now = Date.now();
+    const device = mcDevicesRef.current.find(d => d.id === id);
+    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, ...patch, lastUpdated: now } : d));
+    if (device) {
+      setMicrocontrollers(prev => prev.map(m =>
+        m.id === device.mcId
+          ? { ...m, configVersion: (m.configVersion ?? 0) + 1, lastConfigUpdate: now }
+          : m
+      ));
+    }
   }, []);
 
   const deleteMCDevice = useCallback((id: string) => {
+    const device = mcDevicesRef.current.find(d => d.id === id);
     setMCDevices(prev => prev.filter(d => d.id !== id));
+    if (device) {
+      const now = Date.now();
+      setMicrocontrollers(prev => prev.map(m =>
+        m.id === device.mcId
+          ? { ...m, configVersion: (m.configVersion ?? 0) + 1, lastConfigUpdate: now }
+          : m
+      ));
+    }
   }, []);
 
   const toggleMCDevice = useCallback((id: string) => {
-    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, on: !d.on } : d));
+    const now = Date.now();
+    setMCDevices(prev => prev.map(d => d.id === id ? { ...d, on: !d.on, lastUpdated: now } : d));
   }, []);
 
   return (

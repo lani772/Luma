@@ -550,6 +550,10 @@ export interface MCDevice {
   activeHigh: boolean;
   startupState: "on" | "off" | "restore";
   on: boolean;
+  // Auto-managed: relationship & tracking (set by context, optional for initial data)
+  mcName?: string;
+  registrationDate?: number;
+  lastUpdated?: number;
 }
 
 export interface Microcontroller {
@@ -577,6 +581,11 @@ export interface Microcontroller {
   wifiChannel: number;
   bluetoothEnabled: boolean;
   httpEnabled: boolean;
+  // OTA & config synchronization (auto-managed by context)
+  hardwareVersion?: string;
+  configVersion?: number;
+  lastConfigUpdate?: number;
+  lastSync?: number;
 }
 
 const _MC_N = Date.now();
@@ -607,6 +616,10 @@ export const INITIAL_MICROCONTROLLERS: Microcontroller[] = [
     wifiChannel: 6,
     bluetoothEnabled: false,
     httpEnabled: true,
+    hardwareVersion: "rev1.0",
+    configVersion: 3,
+    lastConfigUpdate: _MC_N - 86400000,
+    lastSync: _MC_N - 30000,
   },
   {
     id: "MC002",
@@ -633,21 +646,27 @@ export const INITIAL_MICROCONTROLLERS: Microcontroller[] = [
     wifiChannel: 6,
     bluetoothEnabled: false,
     httpEnabled: true,
+    hardwareVersion: "rev1.0",
+    configVersion: 1,
+    lastConfigUpdate: _MC_N - 86400000 * 7,
+    lastSync: _MC_N - 7200000,
   },
 ];
 
 export const INITIAL_MC_DEVICES: MCDevice[] = [
   {
-    id: "MCD001", mcId: "MC001",
+    id: "MCD001", mcId: "MC001", mcName: "Living Room Hub",
     name: "Ceiling Light", description: "Main ceiling lamp relay",
     room: "Living Room", icon: "sun",
     gpioPin: 2, activeHigh: true, startupState: "restore", on: true,
+    registrationDate: _MC_N - 86400000 * 30, lastUpdated: _MC_N - 3600000,
   },
   {
-    id: "MCD002", mcId: "MC001",
+    id: "MCD002", mcId: "MC001", mcName: "Living Room Hub",
     name: "Floor Lamp", description: "Corner floor lamp relay",
     room: "Living Room", icon: "sun",
     gpioPin: 4, activeHigh: true, startupState: "off", on: false,
+    registrationDate: _MC_N - 86400000 * 25, lastUpdated: _MC_N - 7200000,
   },
 ];
 

@@ -8,7 +8,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
-import { ESP32_GPIO_PINS, MC_FIRMWARE_HISTORY, MCDevice, Microcontroller } from "@/data/luma-data";
+import { ESP32_GPIO_PINS, MC_FIRMWARE_HISTORY, MCDevice, Microcontroller, timeAgo } from "@/data/luma-data";
 import ProgressBar from "@/components/ProgressBar";
 
 const TABS = [
@@ -108,38 +108,80 @@ function OverviewSection({ mc, devices, onRegisterDevice, onRefresh, onRestart }
   mc: Microcontroller; devices: MCDevice[];
   onRegisterDevice: () => void; onRefresh: () => void; onRestart: () => void;
 }) {
+  const devicesOn    = devices.filter(d => d.on).length;
+  const usedPins     = devices.map(d => d.gpioPin);
+  const availGPIO    = ESP32_GPIO_PINS.filter(p => !usedPins.includes(p)).length;
+
   return (
     <View style={s.gap}>
-      <SLabel>Status</SLabel>
+      <SLabel>Module Dashboard</SLabel>
       <View style={s.card}>
-        <InfoRow icon="tag" label="Module Name" value={mc.name} />
+        <InfoRow icon="tag"     label="Module Name"      value={mc.name} />
         <Divider />
-        <InfoRow icon="circle" label="Status" value={mc.online ? "Online" : "Offline"} valueColor={mc.online ? C.on : C.off} />
+        <InfoRow icon="circle"  label="Status"           value={mc.online ? "Online" : "Offline"} valueColor={mc.online ? C.on : C.off} />
         <Divider />
-        <InfoRow icon="package" label="Firmware" value={mc.firmware} />
+        <InfoRow icon="package" label="Firmware"         value={mc.firmware} />
         <Divider />
-        <InfoRow icon="zap" label="Devices" value={`${devices.length}`} />
+        <InfoRow icon="code"    label="Hardware Version" value={mc.hardwareVersion ?? "rev1.0"} />
         <Divider />
-        <InfoRow icon="globe" label="IP Address" value={mc.ipAddress} />
+        <InfoRow icon="globe"   label="IP Address"       value={mc.ipAddress} />
         <Divider />
-        <InfoRow icon="wifi" label="Wi-Fi Network" value={mc.wifiSsid || "—"} />
+        <InfoRow icon="wifi"    label="Wi-Fi SSID"       value={mc.wifiSsid || "—"} />
+        <Divider />
+        <InfoRow icon="bluetooth" label="Bluetooth"      value={mc.bluetoothEnabled ? "Enabled" : "Disabled"} />
+        <Divider />
+        <InfoRow icon="hash"    label="Config Version"   value={mc.configVersion !== undefined ? `v${mc.configVersion}` : "—"} />
+        <Divider />
+        <InfoRow icon="refresh-cw" label="Last Sync"    value={mc.lastSync ? timeAgo(mc.lastSync) : "Never"} />
+        <Divider />
+        <InfoRow icon="edit"    label="Config Updated"   value={mc.lastConfigUpdate ? timeAgo(mc.lastConfigUpdate) : "—"} />
+      </View>
+
+      <SLabel>Device Summary</SLabel>
+      <View style={s.card}>
+        <View style={{ flexDirection: "row" }}>
+          <SummaryCell label="Devices" value={`${devices.length}`} color={C.accentL} />
+          <SummaryCell label="ON"      value={`${devicesOn}`}      color={C.on}      />
+          <SummaryCell label="OFF"     value={`${devices.length - devicesOn}`} color={C.mute} />
+        </View>
+        <Divider />
+        <View style={{ flexDirection: "row" }}>
+          <SummaryCell label="GPIO Used"  value={`${usedPins.length}`} color="#f97316" />
+          <SummaryCell label="GPIO Free"  value={`${availGPIO}`}       color={C.on}    />
+          <SummaryCell label="GPIO Total" value={`${ESP32_GPIO_PINS.length}`} color={C.sec} />
+        </View>
       </View>
 
       <SLabel>Performance</SLabel>
       <View style={s.card}>
-        <PerfRow label="CPU Usage" value={mc.cpuUsage} max={100} unit="%" color={mc.cpuUsage > 80 ? C.off : C.on} />
+        <PerfRow label="CPU Usage"    value={mc.cpuUsage}    max={100} unit="%" color={mc.cpuUsage > 80 ? C.off : C.on} />
         <Divider />
         <PerfRow label="Memory Usage" value={mc.memoryUsage} max={100} unit="%" color={mc.memoryUsage > 75 ? C.warn : C.teal} />
         <Divider />
-        <InfoRow icon="clock" label="Uptime" value={mc.uptime} />
+        <PerfRow label="Flash Usage"  value={mc.flashUsage}  max={100} unit="%" color={mc.flashUsage > 85 ? C.warn : C.accentL} />
+        <Divider />
+        <InfoRow icon="thermometer" label="Temperature" value={mc.online && mc.temperature ? `${mc.temperature}°C` : "—"} />
+        <Divider />
+        <InfoRow icon="clock"       label="Uptime"      value={mc.uptime} />
+        <Divider />
+        <InfoRow icon="refresh-cw"  label="Restart Count" value={`${mc.restartCount}`} valueColor={mc.restartCount > 10 ? C.warn : undefined} />
       </View>
 
       <SLabel>Quick Actions</SLabel>
       <View style={s.row}>
-        <ActionBtn icon="plus-circle" label="Register Device" color="#f97316" onPress={onRegisterDevice} />
-        <ActionBtn icon="refresh-cw" label="Restart" color={C.warn} onPress={onRestart} />
-        <ActionBtn icon="refresh-ccw" label="Refresh" color={C.teal} onPress={onRefresh} />
+        <ActionBtn icon="plus-circle"  label="Register Device" color="#f97316"  onPress={onRegisterDevice} />
+        <ActionBtn icon="refresh-cw"   label="Restart"         color={C.warn}   onPress={onRestart} />
+        <ActionBtn icon="refresh-ccw"  label="Refresh"         color={C.teal}   onPress={onRefresh} />
       </View>
+    </View>
+  );
+}
+
+function SummaryCell({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <View style={{ flex: 1, alignItems: "center", paddingVertical: 10 }}>
+      <Text style={{ fontSize: 22, fontWeight: "700" as const, color, fontFamily: "Inter_700Bold" }}>{value}</Text>
+      <Text style={{ fontSize: 10, color: C.mute, fontFamily: "Inter_400Regular", marginTop: 2 }}>{label}</Text>
     </View>
   );
 }
