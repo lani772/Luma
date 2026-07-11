@@ -1,1 +1,2 @@
 - [LUMA color palette lever](luma-color-palette.md) — single-file `constants/colors.ts` edit ripples the whole 15-screen app since every screen imports the shared `C` object.
+- [Internal API Communication Framework](internal-api-framework.md) — 8-engine message bus; all inter-engine traffic routes through the gateway; mobile uses inline UUID (no expo-crypto).

@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type MessageType = typeof MessageType[keyof typeof MessageType];
+
+
+export const MessageType = {
+  COMMAND: 'COMMAND',
+  EVENT: 'EVENT',
+  QUERY: 'QUERY',
+  RESPONSE: 'RESPONSE',
+  BROADCAST: 'BROADCAST',
+} as const;

@@ -5,7 +5,8 @@
  * LUMA Smart Home Internal API — connects Firmware, Device, WiFi, MQTT, USB, Firmware Upload, RN MQTT Client, and P2P engines through a unified internal message gateway.
  * OpenAPI spec version: 0.1.0
  */
+import type { EngineInfo } from './engineInfo';
 
-export interface HealthStatus {
-  status: string;
+export interface EngineListResponse {
+  engines: EngineInfo[];
 }

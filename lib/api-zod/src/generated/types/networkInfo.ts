@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface NetworkInfo {
+  ssid: string;
+  bssid?: string;
+  rssi: number;
+  channel: number;
+  secured: boolean;
 }

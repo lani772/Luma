@@ -6,6 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface USBDevice {
+  portPath: string;
+  vendorId?: string;
+  productId?: string;
+  manufacturer: string;
+  serialNumber?: string;
+  baudRate?: number;
+  connected: boolean;
 }

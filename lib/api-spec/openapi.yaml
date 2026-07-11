@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: LUMA Smart Home Internal API — connects Firmware, Device, WiFi, MQTT, USB, Firmware Upload, RN MQTT Client, and P2P engines through a unified internal message gateway.
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: engines
+    description: Internal engine gateway — status, discovery, and message routing
+  - name: devices
+    description: Device registry and command dispatch
+  - name: mqtt
+    description: MQTT broker state
+  - name: wifi
+    description: WiFi and network discovery
+  - name: usb
+    description: USB device management
+  - name: firmware
+    description: Firmware version management and OTA jobs
 paths:
   /healthz:
     get:
@@ -24,6 +36,224 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /engines:
+    get:
+      operationId: listEngines
+      tags: [engines]
+      summary: List all registered engines
+      responses:
+        "200":
+          description: Engine list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EngineListResponse"
+
+  /engines/{engineId}:
+    get:
+      operationId: getEngine
+      tags: [engines]
+      summary: Get a specific engine by ID
+      parameters:
+        - name: engineId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/EngineId"
+      responses:
+        "200":
+          description: Engine info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EngineInfoResponse"
+        "404":
+          description: Engine not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /engines/{engineId}/command:
+    post:
+      operationId: sendEngineCommand
+      tags: [engines]
+      summary: Send a command to a specific engine
+      parameters:
+        - name: engineId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/EngineId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EngineCommandRequest"
+      responses:
+        "200":
+          description: Command dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDispatchResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /engines/message/publish:
+    post:
+      operationId: publishInternalMessage
+      tags: [engines]
+      summary: Publish a raw internal message through the gateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishMessageRequest"
+      responses:
+        "200":
+          description: Message published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDispatchResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /engines/queue/offline:
+    get:
+      operationId: getOfflineQueue
+      tags: [engines]
+      summary: Get messages waiting in the offline queue
+      responses:
+        "200":
+          description: Offline queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+
+  /engines/queue/dead-letters:
+    get:
+      operationId: getDeadLetterQueue
+      tags: [engines]
+      summary: Get messages that could not be delivered
+      responses:
+        "200":
+          description: Dead-letter queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageListResponse"
+
+  /engines/devices/all:
+    get:
+      operationId: listDevices
+      tags: [devices]
+      summary: List all registered devices from the Device Engine
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceListResponse"
+
+  /engines/devices/command:
+    post:
+      operationId: sendDeviceCommand
+      tags: [devices]
+      summary: Send a control command to a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCommandRequest"
+      responses:
+        "200":
+          description: Command dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDispatchResponse"
+
+  /engines/mqtt/status:
+    get:
+      operationId: getMQTTStatus
+      tags: [mqtt]
+      summary: Get MQTT broker connection status and active subscriptions
+      responses:
+        "200":
+          description: MQTT status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MQTTStatusResponse"
+
+  /engines/wifi/networks:
+    get:
+      operationId: getWifiNetworks
+      tags: [wifi]
+      summary: Get scanned WiFi networks and discovered devices
+      responses:
+        "200":
+          description: WiFi network info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WiFiNetworksResponse"
+
+  /engines/usb/devices:
+    get:
+      operationId: getUSBDevices
+      tags: [usb]
+      summary: Get detected USB devices
+      responses:
+        "200":
+          description: USB device list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/USBDeviceListResponse"
+
+  /engines/firmware/jobs:
+    get:
+      operationId: getFirmwareJobs
+      tags: [firmware]
+      summary: Get all firmware update jobs tracked by the Firmware Engine
+      responses:
+        "200":
+          description: Firmware jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareJobsResponse"
+
+  /engines/firmware-upload/jobs:
+    get:
+      operationId: getFirmwareUploadJobs
+      tags: [firmware]
+      summary: Get all upload jobs tracked by the Firmware Upload Engine
+      responses:
+        "200":
+          description: Upload jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareJobsResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +264,364 @@ components:
       required:
         - status
 
+    EngineId:
+      type: string
+      enum:
+        - firmware_engine
+        - device_engine
+        - wifi_engine
+        - mqtt_engine
+        - usb_engine
+        - firmware_upload_engine
+        - rn_mqtt_client_engine
+        - p2p_engine
+
+    MessagePriority:
+      type: string
+      enum: [critical, high, normal, low]
+
+    MessageType:
+      type: string
+      enum: [COMMAND, EVENT, QUERY, RESPONSE, BROADCAST]
+
+    EngineStatus:
+      type: string
+      enum: [initializing, running, stopped, error]
+
+    EngineInfo:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/EngineId"
+        name:
+          type: string
+        version:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        subscribedActions:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: "#/components/schemas/EngineStatus"
+        registeredAt:
+          type: string
+        lastHeartbeat:
+          type: string
+        messagesSent:
+          type: number
+        messagesReceived:
+          type: number
+      required:
+        - id
+        - name
+        - version
+        - capabilities
+        - subscribedActions
+        - status
+        - registeredAt
+        - lastHeartbeat
+        - messagesSent
+        - messagesReceived
+
+    InternalMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        destination:
+          type: string
+        type:
+          $ref: "#/components/schemas/MessageType"
+        action:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+        priority:
+          $ref: "#/components/schemas/MessagePriority"
+        correlationId:
+          type: string
+        ttl:
+          type: number
+      required:
+        - id
+        - source
+        - destination
+        - type
+        - action
+        - payload
+        - timestamp
+        - priority
+
+    EngineListResponse:
+      type: object
+      properties:
+        engines:
+          type: array
+          items:
+            $ref: "#/components/schemas/EngineInfo"
+      required:
+        - engines
+
+    EngineInfoResponse:
+      type: object
+      properties:
+        engine:
+          $ref: "#/components/schemas/EngineInfo"
+      required:
+        - engine
+
+    EngineCommandRequest:
+      type: object
+      properties:
+        action:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        priority:
+          $ref: "#/components/schemas/MessagePriority"
+        source:
+          $ref: "#/components/schemas/EngineId"
+      required:
+        - action
+
+    PublishMessageRequest:
+      type: object
+      properties:
+        source:
+          $ref: "#/components/schemas/EngineId"
+        destination:
+          type: string
+        type:
+          $ref: "#/components/schemas/MessageType"
+        action:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        priority:
+          $ref: "#/components/schemas/MessagePriority"
+      required:
+        - source
+        - destination
+        - action
+
+    MessageDispatchResponse:
+      type: object
+      properties:
+        messageId:
+          type: string
+        engineId:
+          type: string
+        action:
+          type: string
+      required:
+        - messageId
+
+    MessageListResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/InternalMessage"
+      required:
+        - messages
+
+    DeviceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        mac:
+          type: string
+        ip:
+          type: string
+        room:
+          type: string
+        floor:
+          type: string
+        firmware:
+          type: string
+        status:
+          type: string
+        mqttTopic:
+          type: string
+        lastSeen:
+          type: string
+        state:
+          type: object
+          additionalProperties: true
+        config:
+          type: object
+          additionalProperties: true
+      required:
+        - id
+        - name
+        - type
+        - mac
+        - firmware
+        - status
+        - lastSeen
+        - state
+        - config
+
+    DeviceListResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeviceRecord"
+      required:
+        - devices
+
+    DeviceCommandRequest:
+      type: object
+      properties:
+        deviceId:
+          type: string
+        command:
+          type: string
+          enum: [TURN_ON, TURN_OFF, TOGGLE, SET_BRIGHTNESS, SET_COLOR, SET_TEMP, REBOOT]
+        params:
+          type: object
+          additionalProperties: true
+      required:
+        - deviceId
+        - command
+
+    MQTTSubscription:
+      type: object
+      properties:
+        topic:
+          type: string
+        qos:
+          type: number
+        subscribedBy:
+          type: string
+      required:
+        - topic
+        - qos
+        - subscribedBy
+
+    MQTTStatusResponse:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MQTTSubscription"
+      required:
+        - connected
+        - subscriptions
+
+    NetworkInfo:
+      type: object
+      properties:
+        ssid:
+          type: string
+        bssid:
+          type: string
+        rssi:
+          type: number
+        channel:
+          type: number
+        secured:
+          type: boolean
+      required:
+        - ssid
+        - rssi
+        - channel
+        - secured
+
+    WiFiNetworksResponse:
+      type: object
+      properties:
+        networks:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkInfo"
+        discoveredDevices:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        localIP:
+          type: string
+        hotspot:
+          type: object
+          nullable: true
+          additionalProperties: true
+      required:
+        - networks
+        - discoveredDevices
+        - localIP
+
+    USBDevice:
+      type: object
+      properties:
+        portPath:
+          type: string
+        vendorId:
+          type: string
+        productId:
+          type: string
+        manufacturer:
+          type: string
+        serialNumber:
+          type: string
+        baudRate:
+          type: number
+        connected:
+          type: boolean
+      required:
+        - portPath
+        - manufacturer
+        - connected
+
+    USBDeviceListResponse:
+      type: object
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/USBDevice"
+      required:
+        - devices
+
+    FirmwareJobsResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required:
+        - jobs
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        engineId:
+          type: string
+      required:
+        - error

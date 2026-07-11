@@ -6,6 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type EngineStatus = typeof EngineStatus[keyof typeof EngineStatus];
+
+
+export const EngineStatus = {
+  initializing: 'initializing',
+  running: 'running',
+  stopped: 'stopped',
+  error: 'error',
+} as const;
