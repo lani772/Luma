@@ -1,8 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   ActivityLog,
+  AdminDelegatedPermission,
   AutomationRule,
+  DeviceFeature,
+  DeviceFeatureAccess,
+  GuestConfig,
+  INITIAL_ACCESS_REQUESTS,
   INITIAL_LAMPS,
+  INITIAL_MC_USERS,
   INITIAL_NOTIFICATIONS,
   INITIAL_SCENES,
   INITIAL_USERS,
@@ -16,7 +22,10 @@ import {
   LumaRole,
   LumaUser,
   LUMA_INITIAL_USERS,
+  MCAccessRequest,
   MCDevice,
+  MCUserEntry,
+  MCUserRole,
   Microcontroller,
   PENDING_REQUESTS,
   PERMS_DEF,
@@ -73,6 +82,25 @@ interface LumaContextType {
   updateMCDevice: (id: string, patch: Partial<MCDevice>) => void;
   deleteMCDevice: (id: string) => void;
   toggleMCDevice: (id: string) => void;
+  // ── MCU Permission Model ──────────────────────────────────────────────────
+  mcUsers: MCUserEntry[];
+  accessRequests: MCAccessRequest[];
+  promoteToAdmin: (userId: number, delegation: AdminDelegatedPermission[]) => void;
+  revokeAdmin: (userId: number) => void;
+  updateAdminDelegation: (userId: number, delegation: AdminDelegatedPermission[]) => void;
+  toggleAdminPerm: (userId: number, perm: AdminDelegatedPermission) => void;
+  grantDeviceAccess: (userId: number, access: DeviceFeatureAccess) => void;
+  revokeDeviceAccess: (userId: number, deviceId: string) => void;
+  updateDeviceFeatures: (userId: number, deviceId: string, features: DeviceFeature[]) => void;
+  toggleDeviceFeature: (userId: number, deviceId: string, feature: DeviceFeature) => void;
+  removeMCUser: (userId: number) => void;
+  createGuest: (name: string, email: string, config: GuestConfig, deviceAccess: DeviceFeatureAccess[]) => void;
+  revokeGuest: (userId: number) => void;
+  changeMCUserRole: (userId: number, role: MCUserRole) => void;
+  submitAccessRequest: (req: Omit<MCAccessRequest, "id" | "status" | "requestedAt">) => void;
+  approveAccessRequest: (id: number, deviceAccess: DeviceFeatureAccess[], role: MCUserRole) => void;
+  rejectAccessRequest: (id: number) => void;
+  blockRequester: (id: number) => void;
 }
 
 const LumaContext = createContext<LumaContextType | null>(null);
@@ -90,6 +118,8 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   const [invites, setInvites] = useState<Invite[]>(INITIAL_INVITES);
   const [microcontrollers, setMicrocontrollers] = useState<Microcontroller[]>(INITIAL_MICROCONTROLLERS);
   const [mcDevices, setMCDevices] = useState<MCDevice[]>(INITIAL_MC_DEVICES);
+  const [mcUsers, setMCUsers] = useState<MCUserEntry[]>(INITIAL_MC_USERS);
+  const [accessRequests, setAccessRequests] = useState<MCAccessRequest[]>(INITIAL_ACCESS_REQUESTS);
 
   // Always-current refs so callbacks never have stale closures
   const lumaUsersRef = useRef(lumaUsers);
@@ -348,6 +378,146 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
     setMCDevices(prev => prev.map(d => d.id === id ? { ...d, on: !d.on, lastUpdated: now } : d));
   }, []);
 
+  // ── MCU Permission Model callbacks ─────────────────────────────────────────
+
+  const promoteToAdmin = useCallback((userId: number, delegation: AdminDelegatedPermission[]) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id === userId && u.role !== "owner"
+        ? { ...u, role: "device_admin", adminDelegation: delegation }
+        : u
+    ));
+    pushNotif({ cat: "users", icon: "shield", title: `User promoted to Device Admin`, time: "Just now" });
+  }, [pushNotif]);
+
+  const revokeAdmin = useCallback((userId: number) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id === userId && u.role === "device_admin"
+        ? { ...u, role: "full_access", adminDelegation: [] }
+        : u
+    ));
+    pushNotif({ cat: "users", icon: "user-minus", title: `Device Admin role revoked`, time: "Just now" });
+  }, [pushNotif]);
+
+  const updateAdminDelegation = useCallback((userId: number, delegation: AdminDelegatedPermission[]) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id === userId ? { ...u, adminDelegation: delegation } : u
+    ));
+  }, []);
+
+  const toggleAdminPerm = useCallback((userId: number, perm: AdminDelegatedPermission) => {
+    setMCUsers(prev => prev.map(u => {
+      if (u.id !== userId) return u;
+      const has = u.adminDelegation.includes(perm);
+      return { ...u, adminDelegation: has ? u.adminDelegation.filter(p => p !== perm) : [...u.adminDelegation, perm] };
+    }));
+  }, []);
+
+  const grantDeviceAccess = useCallback((userId: number, access: DeviceFeatureAccess) => {
+    setMCUsers(prev => prev.map(u => {
+      if (u.id !== userId) return u;
+      const existing = u.deviceAccess.find(d => d.deviceId === access.deviceId);
+      if (existing) {
+        return { ...u, deviceAccess: u.deviceAccess.map(d => d.deviceId === access.deviceId ? access : d) };
+      }
+      return { ...u, deviceAccess: [...u.deviceAccess, access] };
+    }));
+  }, []);
+
+  const revokeDeviceAccess = useCallback((userId: number, deviceId: string) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id === userId
+        ? { ...u, deviceAccess: u.deviceAccess.filter(d => d.deviceId !== deviceId) }
+        : u
+    ));
+  }, []);
+
+  const updateDeviceFeatures = useCallback((userId: number, deviceId: string, features: DeviceFeature[]) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id === userId
+        ? { ...u, deviceAccess: u.deviceAccess.map(d => d.deviceId === deviceId ? { ...d, features } : d) }
+        : u
+    ));
+  }, []);
+
+  const toggleDeviceFeature = useCallback((userId: number, deviceId: string, feature: DeviceFeature) => {
+    setMCUsers(prev => prev.map(u => {
+      if (u.id !== userId) return u;
+      return {
+        ...u,
+        deviceAccess: u.deviceAccess.map(d => {
+          if (d.deviceId !== deviceId) return d;
+          const has = d.features.includes(feature);
+          return { ...d, features: has ? d.features.filter(f => f !== feature) : [...d.features, feature] };
+        }),
+      };
+    }));
+  }, []);
+
+  const removeMCUser = useCallback((userId: number) => {
+    setMCUsers(prev => prev.filter(u => u.id !== userId || u.role === "owner"));
+    pushNotif({ cat: "users", icon: "user-minus", title: `User removed from MCU`, time: "Just now" });
+  }, [pushNotif]);
+
+  const changeMCUserRole = useCallback((userId: number, role: MCUserRole) => {
+    setMCUsers(prev => prev.map(u =>
+      u.id !== userId || u.role === "owner" ? u : { ...u, role, adminDelegation: role === "device_admin" ? u.adminDelegation : [] }
+    ));
+  }, []);
+
+  const createGuest = useCallback((name: string, email: string, config: GuestConfig, deviceAccess: DeviceFeatureAccess[]) => {
+    const id = Date.now();
+    const init = name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+    setMCUsers(prev => [...prev, {
+      id,
+      name, email, avatarInit: init, avatarIdx: id % 5,
+      mcId: "MC001", role: "guest",
+      deviceAccess,
+      adminDelegation: [],
+      guestConfig: config,
+      online: false, lastSeen: "Just now", joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+    }]);
+    pushNotif({ cat: "users", icon: "link", title: `Guest access created for ${name}`, time: "Just now" });
+  }, [pushNotif]);
+
+  const revokeGuest = useCallback((userId: number) => {
+    setMCUsers(prev => prev.filter(u => u.id !== userId));
+    pushNotif({ cat: "users", icon: "x-circle", title: `Guest access revoked`, time: "Just now" });
+  }, [pushNotif]);
+
+  const submitAccessRequest = useCallback((req: Omit<MCAccessRequest, "id" | "status" | "requestedAt">) => {
+    setAccessRequests(prev => [...prev, { ...req, id: Date.now(), status: "pending", requestedAt: Date.now() }]);
+    pushNotif({ cat: "security", icon: "shield", title: `New access request from ${req.requesterName}`, time: "Just now" });
+  }, [pushNotif]);
+
+  const approveAccessRequest = useCallback((id: number, deviceAccess: DeviceFeatureAccess[], role: MCUserRole) => {
+    const req = accessRequests.find(r => r.id === id);
+    setAccessRequests(prev => prev.map(r => r.id === id ? { ...r, status: "approved", respondedAt: Date.now() } : r));
+    if (req) {
+      const init = req.requesterName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+      setMCUsers(prev => [...prev, {
+        id: Date.now(),
+        name: req.requesterName, email: "", avatarInit: init, avatarIdx: Date.now() % 5,
+        mcId: req.mcId, role,
+        deviceAccess,
+        adminDelegation: [],
+        online: false, lastSeen: "Just now", joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+      }]);
+      pushNotif({ cat: "users", icon: "check-circle", title: `Access approved for ${req.requesterName}`, time: "Just now" });
+    }
+  }, [accessRequests, pushNotif]);
+
+  const rejectAccessRequest = useCallback((id: number) => {
+    setAccessRequests(prev => prev.map(r => r.id === id ? { ...r, status: "rejected", respondedAt: Date.now() } : r));
+  }, []);
+
+  const blockRequester = useCallback((id: number) => {
+    const req = accessRequests.find(r => r.id === id);
+    setAccessRequests(prev => prev.map(r => r.id === id ? { ...r, status: "blocked", respondedAt: Date.now() } : r));
+    if (req) {
+      pushNotif({ cat: "security", icon: "slash", title: `${req.requesterName} blocked from requesting access`, time: "Just now" });
+    }
+  }, [accessRequests, pushNotif]);
+
   return (
     <LumaContext.Provider value={{
       lamps, scenes, users, notifications, pendingRequests, approvedRequests,
@@ -364,6 +534,11 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
       microcontrollers, mcDevices,
       addMicrocontroller, updateMicrocontroller, deleteMicrocontroller,
       addMCDevice, updateMCDevice, deleteMCDevice, toggleMCDevice,
+      mcUsers, accessRequests,
+      promoteToAdmin, revokeAdmin, updateAdminDelegation, toggleAdminPerm,
+      grantDeviceAccess, revokeDeviceAccess, updateDeviceFeatures, toggleDeviceFeature,
+      removeMCUser, createGuest, revokeGuest, changeMCUserRole,
+      submitAccessRequest, approveAccessRequest, rejectAccessRequest, blockRequester,
     }}>
       {children}
     </LumaContext.Provider>

@@ -676,3 +676,259 @@ export const MC_FIRMWARE_HISTORY = [
   { version: "v2.3.8", date: "Apr 10 2026", notes: "Security patch, memory optimization" },
   { version: "v2.3.5", date: "Mar 02 2026", notes: "Initial stable release" },
 ];
+
+// ─── MCU-Centric Permission Model ────────────────────────────────────────────
+// Every permission is granted by the Owner or an authorized Device Admin,
+// and every permission is scoped to one or more registered devices.
+
+export type MCUserRole = "owner" | "device_admin" | "full_access" | "partial_access" | "guest";
+
+// 4-scope permission levels
+export type MCPermScope = "microcontroller" | "device" | "feature" | "time";
+
+// Owner-exclusive MCU operations (cannot be delegated or revoked)
+export type OwnerPermission =
+  | "register_device" | "delete_device" | "transfer_ownership" | "factory_reset"
+  | "update_firmware" | "generate_keys" | "configure_wifi" | "configure_bluetooth"
+  | "configure_mqtt" | "add_device_admin" | "remove_device_admin"
+  | "change_security_policy" | "view_audit_logs" | "recover_ownership";
+
+// Admin-delegated permissions (Owner decides which each admin receives)
+export type AdminDelegatedPermission =
+  | "invite_users" | "invite_visitors" | "approve_requests" | "remove_users"
+  | "suspend_users" | "grant_device_access" | "revoke_device_access"
+  | "assign_devices" | "create_schedules" | "manage_automation" | "view_activity_logs";
+
+// Device-level feature permissions (4 categories)
+export type ControlFeature = "toggle" | "brightness" | "rgb_color" | "effects" | "fan_speed" | "servo";
+export type ScheduleFeature = "create_schedule" | "edit_schedule" | "delete_schedule" | "enable_schedule" | "disable_schedule";
+export type TimerFeature = "start_timer" | "stop_timer" | "extend_timer" | "cancel_timer";
+export type AutomationFeature = "create_automation" | "edit_automation" | "delete_automation" | "enable_automation";
+export type MonitorFeature = "view_status" | "view_sensors" | "view_energy" | "view_temperature" | "view_history";
+export type DeviceFeature = ControlFeature | ScheduleFeature | TimerFeature | AutomationFeature | MonitorFeature;
+
+export type GuestDuration = "30min" | "2h" | "today" | "tomorrow" | "specific_date";
+
+export interface GuestConfig {
+  duration: GuestDuration;
+  expiresAt: number;
+  maxUses: number | null;
+  usedCount: number;
+  allowedFeatures: DeviceFeature[];
+}
+
+export interface DeviceFeatureAccess {
+  deviceId: string;
+  deviceName: string;
+  features: DeviceFeature[];
+}
+
+export interface MCUserEntry {
+  id: number;
+  name: string;
+  email: string;
+  avatarInit: string;
+  avatarIdx: number;
+  mcId: string;
+  role: MCUserRole;
+  deviceAccess: DeviceFeatureAccess[];
+  adminDelegation: AdminDelegatedPermission[];
+  guestConfig?: GuestConfig;
+  online: boolean;
+  lastSeen: string;
+  joined: string;
+}
+
+export interface MCAccessRequest {
+  id: number;
+  requesterName: string;
+  requesterInit: string;
+  requesterColor: string;
+  mcId: string;
+  discoveredVia: "bluetooth" | "wifi";
+  requestedDeviceIds: string[];
+  requestedAt: number;
+  status: "pending" | "approved" | "rejected" | "blocked";
+  respondedAt?: number;
+}
+
+// ─── Permission Def Tables ────────────────────────────────────────────────────
+
+export interface OwnerPermDef { key: OwnerPermission; icon: string; label: string; desc: string; }
+export const OWNER_PERMISSIONS_DEF: OwnerPermDef[] = [
+  { key: "register_device",      icon: "plus-circle",   label: "Register Device",       desc: "Add a new MCU to the system" },
+  { key: "delete_device",        icon: "trash-2",        label: "Delete Device",         desc: "Permanently remove an MCU" },
+  { key: "transfer_ownership",   icon: "share",          label: "Transfer Ownership",    desc: "Assign ownership to another user" },
+  { key: "factory_reset",        icon: "refresh-cw",     label: "Factory Reset",         desc: "Wipe all settings and data" },
+  { key: "update_firmware",      icon: "download-cloud", label: "Update Firmware",        desc: "Flash new firmware to MCU" },
+  { key: "generate_keys",        icon: "key",            label: "Generate Security Keys", desc: "Rotate device secret keys" },
+  { key: "configure_wifi",       icon: "wifi",           label: "Configure Wi-Fi",        desc: "Change network credentials" },
+  { key: "configure_bluetooth",  icon: "bluetooth",      label: "Configure Bluetooth",    desc: "Manage BT pairing settings" },
+  { key: "configure_mqtt",       icon: "radio",          label: "Configure MQTT",          desc: "Set broker and topics" },
+  { key: "add_device_admin",     icon: "user-plus",      label: "Add Device Admin",        desc: "Promote users to admin" },
+  { key: "remove_device_admin",  icon: "user-minus",     label: "Remove Device Admin",     desc: "Revoke admin privileges" },
+  { key: "change_security_policy", icon: "shield",       label: "Security Policy",         desc: "Change device access rules" },
+  { key: "view_audit_logs",      icon: "list",           label: "View All Audit Logs",     desc: "Full history of all actions" },
+  { key: "recover_ownership",    icon: "unlock",         label: "Recover Ownership",        desc: "Regain access via secure key" },
+];
+
+export interface AdminPermDef { key: AdminDelegatedPermission; icon: string; label: string; desc: string; }
+export const ADMIN_PERMISSIONS_DEF: AdminPermDef[] = [
+  { key: "invite_users",         icon: "user-plus",   label: "Invite Users",          desc: "Send invitations to new members" },
+  { key: "invite_visitors",      icon: "link",        label: "Invite Visitors",        desc: "Create guest access links" },
+  { key: "approve_requests",     icon: "check-circle", label: "Approve Requests",      desc: "Accept or deny access requests" },
+  { key: "remove_users",         icon: "user-minus",  label: "Remove Users",           desc: "Remove members from the home" },
+  { key: "suspend_users",        icon: "pause-circle", label: "Suspend Users",         desc: "Temporarily block access" },
+  { key: "grant_device_access",  icon: "unlock",      label: "Grant Device Access",    desc: "Allow users to use devices" },
+  { key: "revoke_device_access", icon: "lock",        label: "Revoke Device Access",   desc: "Remove device permissions" },
+  { key: "assign_devices",       icon: "cpu",         label: "Assign Devices",          desc: "Link devices to users" },
+  { key: "create_schedules",     icon: "clock",       label: "Create Schedules",        desc: "Set up device schedules" },
+  { key: "manage_automation",    icon: "zap",         label: "Manage Automation",       desc: "Create and edit automations" },
+  { key: "view_activity_logs",   icon: "list",        label: "View Activity Logs",      desc: "See device usage history" },
+];
+
+export interface FeatureDef { key: DeviceFeature; icon: string; label: string; category: string; }
+export const DEVICE_FEATURES_DEF: FeatureDef[] = [
+  { key: "toggle",            icon: "power",         label: "Toggle ON/OFF",       category: "Control" },
+  { key: "brightness",        icon: "sun",           label: "Brightness",           category: "Control" },
+  { key: "rgb_color",         icon: "droplet",       label: "RGB Color",            category: "Control" },
+  { key: "effects",           icon: "star",          label: "Effects",              category: "Control" },
+  { key: "fan_speed",         icon: "wind",          label: "Fan Speed",            category: "Control" },
+  { key: "servo",             icon: "settings",      label: "Servo Position",       category: "Control" },
+  { key: "create_schedule",   icon: "plus",          label: "Create Schedule",      category: "Scheduling" },
+  { key: "edit_schedule",     icon: "edit-2",        label: "Edit Schedule",        category: "Scheduling" },
+  { key: "delete_schedule",   icon: "trash-2",       label: "Delete Schedule",      category: "Scheduling" },
+  { key: "enable_schedule",   icon: "play",          label: "Enable Schedule",      category: "Scheduling" },
+  { key: "disable_schedule",  icon: "pause",         label: "Disable Schedule",     category: "Scheduling" },
+  { key: "start_timer",       icon: "clock",         label: "Start Timer",          category: "Timer" },
+  { key: "stop_timer",        icon: "square",        label: "Stop Timer",           category: "Timer" },
+  { key: "extend_timer",      icon: "plus-circle",   label: "Extend Timer",         category: "Timer" },
+  { key: "cancel_timer",      icon: "x-circle",      label: "Cancel Timer",         category: "Timer" },
+  { key: "create_automation", icon: "plus",          label: "Create Automation",    category: "Automation" },
+  { key: "edit_automation",   icon: "edit-2",        label: "Edit Automation",      category: "Automation" },
+  { key: "delete_automation", icon: "trash-2",       label: "Delete Automation",    category: "Automation" },
+  { key: "enable_automation", icon: "toggle-right",  label: "Enable Automation",    category: "Automation" },
+  { key: "view_status",       icon: "activity",      label: "View Status",          category: "Monitoring" },
+  { key: "view_sensors",      icon: "thermometer",   label: "View Sensors",         category: "Monitoring" },
+  { key: "view_energy",       icon: "zap",           label: "View Energy",          category: "Monitoring" },
+  { key: "view_temperature",  icon: "thermometer",   label: "View Temperature",     category: "Monitoring" },
+  { key: "view_history",      icon: "list",          label: "View History",         category: "Monitoring" },
+];
+
+export const FEATURE_CATEGORIES = ["Control", "Scheduling", "Timer", "Automation", "Monitoring"] as const;
+export type FeatureCategory = typeof FEATURE_CATEGORIES[number];
+
+const ALL_FEATURES: DeviceFeature[] = DEVICE_FEATURES_DEF.map(f => f.key);
+const BASIC_FEATURES: DeviceFeature[] = ["toggle", "view_status"];
+const PARTIAL_FEATURES: DeviceFeature[] = ["toggle", "view_status", "start_timer", "view_energy"];
+const GUEST_FEATURES: DeviceFeature[] = ["toggle", "view_status"];
+
+// ─── Initial MC User Data ─────────────────────────────────────────────────────
+
+const _P_N = Date.now();
+
+export const INITIAL_MC_USERS: MCUserEntry[] = [
+  {
+    id: 1, name: "Umurage K.", email: "umurage@luma.rw", avatarInit: "UK", avatarIdx: 0,
+    mcId: "MC001", role: "owner",
+    deviceAccess: [
+      { deviceId: "L001", deviceName: "Living Room Main", features: ALL_FEATURES },
+      { deviceId: "L002", deviceName: "Bedroom Ceiling", features: ALL_FEATURES },
+      { deviceId: "L003", deviceName: "Kitchen Downlight", features: ALL_FEATURES },
+      { deviceId: "L004", deviceName: "Front Porch", features: ALL_FEATURES },
+      { deviceId: "L005", deviceName: "Study Desk Lamp", features: ALL_FEATURES },
+      { deviceId: "L006", deviceName: "Garage Floodlight", features: ALL_FEATURES },
+    ],
+    adminDelegation: [],
+    online: true, lastSeen: "Now", joined: "Jan 2025",
+  },
+  {
+    id: 2, name: "Alice M.", email: "alice@luma.rw", avatarInit: "AM", avatarIdx: 1,
+    mcId: "MC001", role: "device_admin",
+    deviceAccess: [
+      { deviceId: "L001", deviceName: "Living Room Main", features: ["toggle", "brightness", "rgb_color", "create_schedule", "edit_schedule", "enable_schedule", "disable_schedule", "start_timer", "stop_timer", "view_status", "view_energy", "view_history"] },
+      { deviceId: "L002", deviceName: "Bedroom Ceiling", features: ["toggle", "brightness", "start_timer", "view_status", "view_energy"] },
+      { deviceId: "L003", deviceName: "Kitchen Downlight", features: ["toggle", "brightness", "create_schedule", "view_status", "view_energy"] },
+      { deviceId: "L004", deviceName: "Front Porch", features: ["toggle", "view_status"] },
+      { deviceId: "L005", deviceName: "Study Desk Lamp", features: ["toggle", "brightness", "start_timer", "view_status", "view_energy"] },
+      { deviceId: "L006", deviceName: "Garage Floodlight", features: ["toggle", "view_status"] },
+    ],
+    adminDelegation: ["invite_users", "approve_requests", "grant_device_access", "remove_users", "assign_devices", "create_schedules", "manage_automation", "view_activity_logs"],
+    online: true, lastSeen: "2m ago", joined: "Mar 2025",
+  },
+  {
+    id: 3, name: "Bob N.", email: "bob@luma.rw", avatarInit: "BN", avatarIdx: 2,
+    mcId: "MC001", role: "full_access",
+    deviceAccess: [
+      { deviceId: "L001", deviceName: "Living Room Main", features: ["toggle", "brightness", "rgb_color", "start_timer", "create_schedule", "view_status", "view_energy", "view_history"] },
+      { deviceId: "L003", deviceName: "Kitchen Downlight", features: ["toggle", "brightness", "start_timer", "view_status"] },
+      { deviceId: "L004", deviceName: "Front Porch", features: ["toggle", "view_status"] },
+    ],
+    adminDelegation: [],
+    online: false, lastSeen: "1h ago", joined: "May 2025",
+  },
+  {
+    id: 4, name: "Claire R.", email: "claire@luma.rw", avatarInit: "CR", avatarIdx: 3,
+    mcId: "MC001", role: "partial_access",
+    deviceAccess: [
+      { deviceId: "L002", deviceName: "Bedroom Ceiling", features: PARTIAL_FEATURES },
+      { deviceId: "L005", deviceName: "Study Desk Lamp", features: ["toggle", "brightness", "view_status", "start_timer"] },
+    ],
+    adminDelegation: [],
+    online: true, lastSeen: "15m ago", joined: "Jun 2025",
+  },
+  {
+    id: 5, name: "David P.", email: "david@guest.rw", avatarInit: "DP", avatarIdx: 4,
+    mcId: "MC001", role: "guest",
+    deviceAccess: [
+      { deviceId: "L001", deviceName: "Living Room Main", features: GUEST_FEATURES },
+    ],
+    adminDelegation: [],
+    guestConfig: {
+      duration: "today",
+      expiresAt: _P_N + 28800000,
+      maxUses: 20,
+      usedCount: 3,
+      allowedFeatures: GUEST_FEATURES,
+    },
+    online: false, lastSeen: "2d ago", joined: "Jun 2026",
+  },
+];
+
+export const INITIAL_ACCESS_REQUESTS: MCAccessRequest[] = [
+  {
+    id: 1,
+    requesterName: "Oliver Hayes", requesterInit: "OH", requesterColor: "#F43F5E",
+    mcId: "MC001",
+    discoveredVia: "bluetooth",
+    requestedDeviceIds: ["L001", "L004"],
+    requestedAt: _P_N - 7200000,
+    status: "pending",
+  },
+  {
+    id: 2,
+    requesterName: "Priya Sharma", requesterInit: "PS", requesterColor: "#22C55E",
+    mcId: "MC001",
+    discoveredVia: "wifi",
+    requestedDeviceIds: ["L003"],
+    requestedAt: _P_N - 18000000,
+    status: "pending",
+  },
+  {
+    id: 3,
+    requesterName: "James Kofi", requesterInit: "JK", requesterColor: "#7C3AED",
+    mcId: "MC001",
+    discoveredVia: "bluetooth",
+    requestedDeviceIds: ["L002"],
+    requestedAt: _P_N - 86400000,
+    status: "rejected",
+  },
+];
+
+export const MC_ROLE_DEF: Record<MCUserRole, { label: string; color: string; icon: string; rank: number; desc: string }> = {
+  owner:          { label: "Owner",           color: "#F59E0B", icon: "star",    rank: 0, desc: "Full authority over the MCU and all devices" },
+  device_admin:   { label: "Device Admin",    color: "#7C3AED", icon: "shield",  rank: 1, desc: "Manages users and permissions (delegated by Owner)" },
+  full_access:    { label: "Full Access",     color: "#06B6D4", icon: "user",    rank: 2, desc: "Trusted member with multi-device access" },
+  partial_access: { label: "Partial Access",  color: "#10B981", icon: "user",    rank: 3, desc: "Specific functions only on allowed devices" },
+  guest:          { label: "Guest",           color: "#9CA3AF", icon: "link",    rank: 4, desc: "Temporary access with expiry and usage limits" },
+};
