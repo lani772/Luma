@@ -1,0 +1,32 @@
+kind = "api"
+previewPath = "/cloud"
+title = "LUMA Cloud Backend"
+
+[[services]]
+localPort = 8090
+name = "LUMA Cloud Backend"
+paths = ["/cloud"]
+
+[services.development]
+run = "go run ./cmd/api"
+
+[services.development.env]
+CLOUD_API_PORT = "8090"
+
+[services.production]
+
+[services.production.build]
+args = ["go", "build", "-o", "bin/api", "./cmd/api"]
+
+[services.production.build.env]
+ENV = "production"
+
+[services.production.run]
+args = ["artifacts/luma-cloud-backend/bin/api"]
+
+[services.production.run.env]
+CLOUD_API_PORT = "8090"
+ENV = "production"
+
+[services.production.health.startup]
+path = "/cloud/healthz"

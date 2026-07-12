@@ -1,0 +1,463 @@
+openapi: 3.0.3
+info:
+  title: LUMA Cloud Backend API
+  description: >
+    Cloud backend for LUMA Smart Home — Phase 1 (Auth, User, Device
+    Registration, MQTT Broker Adapter engines). All routes are mounted
+    under the /cloud prefix. Spec-literal engine-namespaced paths
+    (/cloud/api/engines/<engine>/...) are available as aliases alongside
+    the primary REST paths shown below.
+  version: 0.1.0
+servers:
+  - url: /cloud
+tags:
+  - name: Auth
+  - name: Users
+  - name: Devices
+  - name: MQTT
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      tags: [Auth]
+      summary: Liveness/readiness check
+      security: []
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new account and start the first session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                fullName: { type: string }
+                deviceName: { type: string }
+                platform: { type: string, enum: [ios, android, web] }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponseEnvelope"
+        "409":
+          description: Email already registered
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and start a new phone-scoped session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                deviceName: { type: string }
+                platform: { type: string, enum: [ios, android, web] }
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponseEnvelope"
+        "401":
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate a refresh token for a new access/refresh pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200":
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponseEnvelope"
+        "401":
+          description: Refresh token invalid, expired, or already rotated
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke the current session's refresh token and blacklist its access token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "204": { description: Logged out }
+
+  /auth/sessions:
+    get:
+      tags: [Auth]
+      summary: List active sessions (phones) for the current account
+      responses:
+        "200":
+          description: Session list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /auth/sessions/revoke-others:
+    post:
+      tags: [Auth]
+      summary: Revoke every session except the current one
+      responses:
+        "204": { description: Other sessions revoked }
+
+  /auth/profile:
+    get:
+      tags: [Auth]
+      summary: Get the current account's auth profile
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: Request a password reset token (delivery is stubbed in Phase 1)
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202": { description: Reset requested (always 202, regardless of whether the email exists) }
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm a password reset with the issued token
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "204": { description: Password updated }
+
+  /auth/email-verification/request:
+    post:
+      tags: [Auth]
+      summary: Request an email verification token (delivery is stubbed in Phase 1)
+      responses:
+        "202": { description: Verification requested }
+
+  /auth/email-verification/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm email verification with the issued token
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "204": { description: Email verified }
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get the current account
+      responses:
+        "200": { description: Account, content: { application/json: { schema: { $ref: "#/components/schemas/ApiEnvelope" } } } }
+    patch:
+      tags: [Users]
+      summary: Update profile fields
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string }
+      responses:
+        "200": { description: Updated }
+
+  /users/me/preferences:
+    patch:
+      tags: [Users]
+      summary: Update notification/unit/theme preferences
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200": { description: Updated }
+
+  /users/me/phones:
+    get:
+      tags: [Users]
+      summary: List phones (session-bearing devices) linked to this account
+      responses:
+        "200": { description: Phone list }
+
+  /users/me/phones/{phoneId}:
+    delete:
+      tags: [Users]
+      summary: Remove a linked phone and revoke its sessions
+      parameters:
+        - name: phoneId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Removed }
+
+  /users/me/devices:
+    get:
+      tags: [Users]
+      summary: List devices this account owns or administers
+      responses:
+        "200": { description: Device summaries }
+
+  /devices:
+    post:
+      tags: [Devices]
+      summary: Register a new device, owned by the current account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, deviceType, microcontrollerId, macAddress]
+              properties:
+                name: { type: string }
+                deviceType: { type: string }
+                microcontrollerId: { type: string }
+                macAddress: { type: string }
+                capabilities:
+                  type: array
+                  items: { type: string }
+      responses:
+        "201": { description: Device registered }
+    get:
+      tags: [Devices]
+      summary: List devices owned or administered by the current account
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200": { description: Paginated device list }
+
+  /devices/{deviceId}:
+    parameters:
+      - name: deviceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Devices]
+      summary: Get a device (owner or admin access required)
+      responses:
+        "200": { description: Device }
+        "403": { description: Not owner or admin of this device }
+    patch:
+      tags: [Devices]
+      summary: Update a device's name/capabilities
+      responses:
+        "200": { description: Updated }
+    delete:
+      tags: [Devices]
+      summary: Remove a device (owner only)
+      responses:
+        "204": { description: Removed }
+
+  /devices/{deviceId}/transfer-ownership:
+    post:
+      tags: [Devices]
+      summary: Transfer ownership to another account by email (owner only; old owner becomes admin)
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newOwnerEmail]
+              properties:
+                newOwnerEmail: { type: string, format: email }
+      responses:
+        "200": { description: Ownership transferred }
+
+  /devices/{deviceId}/admins:
+    post:
+      tags: [Devices]
+      summary: Grant admin access to another account by email (owner only)
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Admin granted }
+
+  /devices/{deviceId}/admins/{userId}:
+    delete:
+      tags: [Devices]
+      summary: Revoke a device admin (owner only)
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Admin revoked }
+
+  /devices/{deviceId}/history:
+    get:
+      tags: [Devices]
+      summary: Ownership/admin history for a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: History entries }
+
+  /devices/{deviceId}/mqtt-credentials:
+    post:
+      tags: [MQTT]
+      summary: Issue (or rotate) scoped MQTT credentials for a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Credentials issued }
+    delete:
+      tags: [MQTT]
+      summary: Revoke a device's MQTT credentials
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Revoked }
+
+  /devices/{deviceId}/mqtt-topics:
+    get:
+      tags: [MQTT]
+      summary: Get the MQTT topic set for a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Topics }
+
+  /engines/mqtt/health:
+    get:
+      tags: [MQTT]
+      summary: Broker adapter connection health
+      security: []
+      responses:
+        "200": { description: Health status }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: {}
+    AuthResponseEnvelope:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            accessToken: { type: string }
+            accessTokenExpiresAt: { type: string, format: date-time }
+            refreshToken: { type: string }
+            refreshTokenExpiresAt: { type: string, format: date-time }
+            sessionId: { type: string, format: uuid }
+            user:
+              type: object
+              properties:
+                id: { type: string, format: uuid }
+                email: { type: string, format: email }
+                fullName: { type: string }
+                role: { type: string }
+                emailVerified: { type: boolean }
+                subscriptionTier: { type: string }
+                createdAt: { type: string, format: date-time }

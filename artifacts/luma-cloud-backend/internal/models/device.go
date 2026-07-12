@@ -29,7 +29,7 @@ type Device struct {
 	FirmwareVersion    *string      `gorm:"column:firmware_version"`
 	Capabilities       JSONList     `gorm:"column:capabilities"`
 	Status             DeviceStatus `gorm:"column:status"`
-	RegisteredAt       time.Time    `gorm:"column:registered_at"`
+	RegisteredAt       time.Time    `gorm:"column:registered_at;autoCreateTime"`
 	LastOnlineAt       *time.Time   `gorm:"column:last_online_at"`
 	LastSyncAt         *time.Time   `gorm:"column:last_sync_at"`
 	CreatedAt          time.Time    `gorm:"column:created_at"`

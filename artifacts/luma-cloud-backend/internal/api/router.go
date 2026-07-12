@@ -52,15 +52,16 @@ func NewRouter(cfg Config) *gin.Engine {
 	r.Use(middleware.StructuredLogging(cfg.Logger))
 	r.Use(middleware.CORS(cfg.CORSOrigins))
 
-	r.GET("/healthz", func(c *gin.Context) {
+	root := r.Group(BasePath)
+
+	root.GET("/healthz", func(c *gin.Context) {
 		httputil.OK(c, http.StatusOK, gin.H{
-			"status":    "ok",
-			"uptime":    time.Since(cfg.StartedAt).String(),
+			"status":       "ok",
+			"uptime":       time.Since(cfg.StartedAt).String(),
 			"cacheBackend": cfg.Cache.Backend(),
 		})
 	})
 
-	root := r.Group(BasePath)
 	root.Use(middleware.RateLimit(cfg.Cache, cfg.RateLimitRPM, cfg.RateLimitBurst))
 
 	requireAuth := middleware.RequireAuth(cfg.JWTAccessSecret, cfg.Blacklist)

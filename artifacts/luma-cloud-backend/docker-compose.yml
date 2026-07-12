@@ -1,0 +1,48 @@
+# Local/portable dev stack only — NOT used for Replit deployment (Replit
+# runs the compiled binary directly; see .replit-artifact/artifact.toml and
+# README.md "Deployment" section). Useful if you want to run this backend
+# outside Replit against a real Postgres + Redis instead of Replit's
+# provisioned Postgres and the in-memory cache fallback.
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      ENV: development
+      CLOUD_API_PORT: 8090
+      DATABASE_URL: postgres://luma:luma@postgres:5432/luma_cloud?sslmode=disable
+      REDIS_URL: redis://redis:6379/0
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-change-me}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://mqtt.luma.local:1883}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: luma
+      POSTGRES_PASSWORD: luma
+      POSTGRES_DB: luma_cloud
+    ports:
+      - "5432:5432"
+    volumes:
+      - luma_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  luma_postgres_data:
