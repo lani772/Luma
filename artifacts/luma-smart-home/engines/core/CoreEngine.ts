@@ -18,6 +18,7 @@ import { DashboardEngine } from "./DashboardEngine";
 import { FirmwareEngine } from "./FirmwareEngine";
 import { MQTTCommunicationEngine } from "./MQTTCommunicationEngine";
 import { ExtensionEngine } from "./ExtensionEngine";
+import { SynchronizationEngine } from "./SynchronizationEngine";
 
 export type CoreState = "idle" | "booting" | "ready" | "degraded" | "backgrounded" | "shutting_down" | "shutdown";
 
@@ -42,6 +43,8 @@ export class CoreEngineClass {
   readonly firmware: FirmwareEngine = new FirmwareEngine(eventEngine, databaseEngine);
   readonly mqtt: MQTTCommunicationEngine = new MQTTCommunicationEngine(eventEngine, databaseEngine);
   readonly extensions: ExtensionEngine = new ExtensionEngine(eventEngine, databaseEngine);
+  // SynchronizationEngine receives SecurityEngine so drain() can obtain fresh signatures.
+  readonly sync: SynchronizationEngine = new SynchronizationEngine(eventEngine, databaseEngine, this.security);
 
   // Boot order per spec: Database → Security → Event → Discovery/Comms → DevMgmt → everything else
   private get _bootSequence(): IEngine[][] {
@@ -50,9 +53,9 @@ export class CoreEngineClass {
       [this.database, this.events],
       // Wave 1: Security + Extension (depend on Database+Event)
       [this.security, this.extensions],
-      // Wave 2: Permissions, MQTT, Discovery (depend on Security/Database/Event)
-      [this.permissions, this.mqtt, this.discovery],
-      // Wave 3: Device Management (depends on MQTT + Discovery)
+      // Wave 2: Permissions, MQTT, Discovery, Sync (depend on Security/Database/Event)
+      [this.permissions, this.mqtt, this.discovery, this.sync],
+      // Wave 3: Device Management (depends on MQTT + Discovery + Sync)
       [this.deviceManagement],
       // Wave 4: Higher-level engines
       [this.notifications, this.automation, this.firmware, this.dashboard],
@@ -62,7 +65,7 @@ export class CoreEngineClass {
   private get _shutdownOrder(): IEngine[] {
     return [
       this.dashboard, this.firmware, this.automation, this.notifications,
-      this.deviceManagement, this.discovery, this.mqtt, this.permissions,
+      this.deviceManagement, this.sync, this.discovery, this.mqtt, this.permissions,
       this.extensions, this.security, this.events, this.database,
     ];
   }
@@ -233,6 +236,12 @@ export class CoreEngineClass {
     this._capabilities.set("device-command", this.deviceManagement.sendCommand.bind(this.deviceManagement));
     this._capabilities.set("event-bus", this.events);
     this._capabilities.set("database", this.database);
+    this._capabilities.set("offline-queue", {
+      enqueue: this.sync.enqueue.bind(this.sync),
+      drain:   this.sync.drain.bind(this.sync),
+      syncAll: this.sync.syncAll.bind(this.sync),
+      size:    this.sync.size.bind(this.sync),
+    });
   }
 
   private _buildManifest(): EngineManifestEntry[] {
@@ -249,7 +258,7 @@ export class CoreEngineClass {
   private _allEngines(): IEngine[] {
     return [
       this.database, this.events, this.security, this.extensions,
-      this.permissions, this.mqtt, this.discovery, this.deviceManagement,
+      this.permissions, this.mqtt, this.discovery, this.sync, this.deviceManagement,
       this.notifications, this.automation, this.firmware, this.dashboard,
     ];
   }

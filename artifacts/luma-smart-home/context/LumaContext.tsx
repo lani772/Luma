@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { CloudAPI } from "@/services/cloud-api";
 import {
   ActivityLog,
   AdminDelegatedPermission,
@@ -121,6 +122,31 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
   const [mcUsers, setMCUsers] = useState<MCUserEntry[]>(INITIAL_MC_USERS);
   const [accessRequests, setAccessRequests] = useState<MCAccessRequest[]>(INITIAL_ACCESS_REQUESTS);
 
+  // ── Cloud sync on mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const user = await CloudAPI.getStoredUser();
+        if (!user) return;
+        const phoneId = await CloudAPI.getOrCreatePhoneId();
+        const result  = await CloudAPI.syncPull(phoneId, "lamp", 0);
+        if (result.resources.length > 0) {
+          setLamps(prev => {
+            const cloudMap = new Map(
+              result.resources.map(r => [r.resourceId, r.data as Partial<Lamp>]),
+            );
+            return prev.map(l => {
+              const cloud = cloudMap.get(l.id);
+              return cloud ? { ...l, ...cloud } : l;
+            });
+          });
+        }
+      } catch {
+        // Cloud unavailable — keep local mock data, fail silently
+      }
+    })();
+  }, []);
+
   // Always-current refs so callbacks never have stale closures
   const lumaUsersRef = useRef(lumaUsers);
   useEffect(() => { lumaUsersRef.current = lumaUsers; }, [lumaUsers]);
@@ -139,6 +165,22 @@ export function LumaProvider({ children }: { children: React.ReactNode }) {
 
   const updateLamp = useCallback((id: string, patch: Partial<Lamp>) => {
     setLamps(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
+    // Fire-and-forget cloud push — combine current cached state with patch
+    const current = lampsRef.current.find(l => l.id === id);
+    if (current) {
+      const patched = { ...current, ...patch };
+      CloudAPI.getStoredUser().then(user => {
+        if (!user) return;
+        return CloudAPI.getOrCreatePhoneId().then(phoneId =>
+          CloudAPI.syncPush(phoneId, [{
+            resourceId: id,
+            resourceType: "lamp",
+            data: patched as unknown as Record<string, unknown>,
+            version: Date.now(),
+          }]),
+        );
+      }).catch(() => {});
+    }
   }, []);
 
   const addLamp = useCallback((lamp: Omit<Lamp, "id">) => {

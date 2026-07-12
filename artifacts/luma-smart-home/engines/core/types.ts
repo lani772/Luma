@@ -14,7 +14,8 @@ export type CoreEngineId =
   | "discovery_engine"
   | "extension_engine"
   | "firmware_engine"
-  | "mqtt_communication_engine";
+  | "mqtt_communication_engine"
+  | "sync_engine";
 
 export type EngineStatus = "idle" | "booting" | "running" | "paused" | "stopping" | "stopped" | "error";
 

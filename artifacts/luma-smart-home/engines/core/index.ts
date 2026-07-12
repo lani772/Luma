@@ -17,6 +17,7 @@ export type { DashboardEngine } from "./DashboardEngine";
 export type { FirmwareEngine } from "./FirmwareEngine";
 export type { MQTTCommunicationEngine } from "./MQTTCommunicationEngine";
 export type { ExtensionEngine } from "./ExtensionEngine";
+export type { SynchronizationEngine } from "./SynchronizationEngine";
 
 // Shared types
 export type {
@@ -42,3 +43,23 @@ export type { MQTTStatus, MQTTChannel } from "./MQTTCommunicationEngine";
 export type { AppRole, DeviceCommand as PermDeviceCommand, AppAction, PermissionCheckResult } from "./PermissionEngine";
 export type { SignedCommand, DeviceToken } from "./SecurityEngine";
 export type { ExtensionRecord } from "./ExtensionEngine";
+export type {
+  QueuedOperation,
+  QueuedOperationKind,
+  RemoteDeviceSnapshot,
+  ApplyLocalFn,
+} from "./SynchronizationEngine";
+
+// Transport abstraction layer
+export type {
+  ITransport,
+  TransportPriority,
+  TransportConnectionState,
+  TransportStatus,
+} from "./transport/ITransport";
+export { MQTTTransport } from "./transport/MQTTTransport";
+export { BluetoothTransport } from "./transport/BluetoothTransport";
+export type { BluetoothMode } from "./transport/BluetoothTransport";
+export { LANTransport } from "./transport/LANTransport";
+export { TransportManager } from "./transport/TransportManager";
+export type { SendResult, TransportManagerStatus } from "./transport/TransportManager";

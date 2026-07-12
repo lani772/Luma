@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InstallBanner } from "@/components/InstallBanner";
+import { CloudAuthProvider } from "@/context/CloudAuthContext";
 import { LumaProvider } from "@/context/LumaContext";
 import { ConnectivityProvider } from "@/context/ConnectivityContext";
 import { MQTTProvider } from "@/context/MQTTContext";
@@ -98,6 +99,7 @@ function RootLayoutNav() {
         <Stack.Screen name="wifi-setup" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="mesh" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="network-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
       </Stack>
       <InstallBanner />
     </>
@@ -131,13 +133,15 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <LumaProvider>
-                <ConnectivityProvider>
-                  <MQTTProvider>
-                    <RootLayoutNav />
-                  </MQTTProvider>
-                </ConnectivityProvider>
-              </LumaProvider>
+              <CloudAuthProvider>
+                <LumaProvider>
+                  <ConnectivityProvider>
+                    <MQTTProvider>
+                      <RootLayoutNav />
+                    </MQTTProvider>
+                  </ConnectivityProvider>
+                </LumaProvider>
+              </CloudAuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

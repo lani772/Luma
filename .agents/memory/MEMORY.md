@@ -2,3 +2,5 @@
 - [Internal API Communication Framework](internal-api-framework.md) — 8-engine message bus; all inter-engine traffic routes through the gateway; mobile uses inline UUID (no expo-crypto).
 - [Vendoring native RN libs in pnpm](mqtt-native-vendoring.md) — vendored workspace package needs react/react-native as devDependencies too, or TS can't resolve peer types.
 - [LUMA comms architecture](luma-comms-architecture.md) — new discovery/Bluetooth features should wrap wifi-engine/p2p-engine, not reimplement; useEngines hook and DeviceCard.tsx are dead code.
+- [pnpm exec in workspace dev scripts](pnpm-exec-fix.md) — pnpm 10 breaks `pnpm exec <cmd>` inside `run` scripts when invoked via `--filter`; use `./node_modules/.bin/<cmd>` instead.
+- [LUMA cloud backend URL routing](luma-cloud-url.md) — Go backend on port 8090, artifact.toml routes `/cloud` path prefix to it; mobile app calls `https://${EXPO_PUBLIC_DOMAIN}/cloud/...`; SESSION_SECRET env var required.

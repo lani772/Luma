@@ -5,12 +5,14 @@ import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "@/constants/colors";
 import LumaToggle from "@/components/LumaToggle";
+import { useCloudAuth } from "@/context/CloudAuthContext";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [s, setS] = useState({ notifs: true, guests: false, energy: true, biometric: true, autolock: true, darkMode: true });
   const tog = (k: keyof typeof s) => setS(x => ({ ...x, [k]: !x[k] }));
+  const { user, isAuthenticated, logout } = useCloudAuth();
 
   return (
     <View style={[styles.root, { paddingTop: topPad }]}>
@@ -25,16 +27,60 @@ export default function SettingsScreen() {
         {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>AH</Text>
+            <Text style={styles.avatarText}>
+              {isAuthenticated && user
+                ? user.fullName.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
+                : "LU"}
+            </Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>Alex Harrison</Text>
-            <Text style={styles.profileRole}>Administrator · Premium Plan</Text>
-            <Text style={styles.profileEmail}>alex@smarthome.io</Text>
+            <Text style={styles.profileName}>
+              {isAuthenticated && user ? user.fullName : "Local User"}
+            </Text>
+            <Text style={styles.profileRole}>
+              {isAuthenticated && user
+                ? `${user.role} · ${user.subscriptionTier}`
+                : "Not signed in to cloud"}
+            </Text>
+            {isAuthenticated && user && (
+              <Text style={styles.profileEmail}>{user.email}</Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.editBtn}>
-            <Feather name="edit-2" size={15} color={C.accentL} />
-          </TouchableOpacity>
+          {!isAuthenticated && (
+            <TouchableOpacity style={styles.editBtn} onPress={() => router.push("/login")}>
+              <Feather name="log-in" size={15} color={C.accentL} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.sectionLabel}>Cloud Account</Text>
+        <View style={styles.infoCard}>
+          {isAuthenticated && user ? (
+            <>
+              <View style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: C.b0 }]}>
+                <Text style={styles.infoLabel}>Status</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: C.on }} />
+                  <Text style={[styles.infoValue, { color: C.on }]}>Connected</Text>
+                </View>
+              </View>
+              <View style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: C.b0 }]}>
+                <Text style={styles.infoLabel}>Account</Text>
+                <Text style={styles.infoValue}>{user.email}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Plan</Text>
+                <Text style={styles.infoValue}>{user.subscriptionTier}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status</Text>
+              <TouchableOpacity onPress={() => router.push("/login")}>
+                <Text style={[styles.infoValue, { color: C.accentL }]}>Sign in →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>Notifications</Text>
@@ -71,10 +117,17 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn}>
-          <Feather name="log-out" size={16} color={C.off} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        {isAuthenticated ? (
+          <TouchableOpacity style={styles.signOutBtn} onPress={() => logout()}>
+            <Feather name="log-out" size={16} color={C.off} />
+            <Text style={styles.signOutText}>Sign Out of Cloud</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.signOutBtn, { borderColor: C.accent + "50", backgroundColor: C.accent + "12" }]} onPress={() => router.push("/login")}>
+            <Feather name="cloud" size={16} color={C.accentL} />
+            <Text style={[styles.signOutText, { color: C.accentL }]}>Connect to Cloud</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
