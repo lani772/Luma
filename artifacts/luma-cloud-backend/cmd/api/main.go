@@ -14,16 +14,25 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/api"
 	"github.com/luma-smart-home/cloud-backend/internal/config"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
 	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
+	deploymentengine "github.com/luma-smart-home/cloud-backend/internal/engines/deployment"
+	firmwareengine "github.com/luma-smart-home/cloud-backend/internal/engines/firmware"
+	notificationengine "github.com/luma-smart-home/cloud-backend/internal/engines/notifications"
+	syncengine "github.com/luma-smart-home/cloud-backend/internal/engines/sync"
+	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
 	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	usersengine "github.com/luma-smart-home/cloud-backend/internal/engines/users"
+	"github.com/luma-smart-home/cloud-backend/internal/models"
+	"github.com/luma-smart-home/cloud-backend/internal/storage"
 	"github.com/luma-smart-home/cloud-backend/internal/storage/cache"
 	"github.com/luma-smart-home/cloud-backend/internal/storage/database"
 	"github.com/luma-smart-home/cloud-backend/internal/worker"
 	"github.com/luma-smart-home/cloud-backend/pkg/mqttadapter"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -82,6 +91,53 @@ func main() {
 	mqttSvc := mqttengine.NewService(mqttRepo, mqttAdapter, cfg.MQTT.BrokerURL)
 	mqttHandler := mqttengine.NewHandler(mqttSvc)
 
+	// --- Firmware engine ---
+	firmwarePath := os.Getenv("FIRMWARE_STORAGE_PATH")
+	if firmwarePath == "" {
+		firmwarePath = "data/firmware"
+	}
+	firmwareStore, err := storage.NewLocalStorageProvider(firmwarePath)
+	if err != nil {
+		log.Error("failed_to_initialize_firmware_storage", "error", err)
+		os.Exit(1)
+	}
+	firmwareRepo := firmwareengine.NewRepository(db)
+	firmwareSvc := firmwareengine.NewService(firmwareRepo, firmwareStore, 20*1024*1024)
+	firmwareHandler := firmwareengine.NewHandler(firmwareSvc)
+
+	// --- Firmware Deployment engine ---
+	deploymentRepo := deploymentengine.NewRepository(db)
+	deploymentSvc := deploymentengine.NewService(deploymentRepo, firmwareSvc)
+	deploymentHandler := deploymentengine.NewHandler(deploymentSvc)
+
+	// --- Notification engine ---
+	notificationRepo := notificationengine.NewRepository(db)
+	notifPrefsAdapter := &notificationsPrefsAdapter{db: db}
+	mockFCM := &notificationengine.MockPushProvider{Name: "fcm", Log: log}
+	mockAPNs := &notificationengine.MockPushProvider{Name: "apns", Log: log}
+	mockEmail := &notificationengine.MockEmailProvider{Log: log}
+	notificationSvc := notificationengine.NewService(notificationRepo, notifPrefsAdapter, mockFCM, mockAPNs, mockEmail, log)
+	notificationHandler := notificationengine.NewHandler(notificationSvc)
+
+	// --- Cloud Sync engine ---
+	syncRepo := syncengine.NewRepository(db)
+	syncSvc := syncengine.NewService(syncRepo)
+	syncHandler := syncengine.NewHandler(syncSvc)
+
+	// --- Cloud Backup engine ---
+	backupPath := os.Getenv("BACKUP_STORAGE_PATH")
+	if backupPath == "" {
+		backupPath = "data/backups"
+	}
+	backupStore, err := storage.NewLocalStorageProvider(backupPath)
+	if err != nil {
+		log.Error("failed_to_initialize_backup_storage", "error", err)
+		os.Exit(1)
+	}
+	backupRepo := backupengine.NewRepository(db)
+	backupSvc := backupengine.NewService(backupRepo, backupStore)
+	backupHandler := backupengine.NewHandler(backupSvc)
+
 	router := api.NewRouter(api.Config{
 		JWTAccessSecret: cfg.JWT.AccessSecret,
 		CORSOrigins:     cfg.CORSOrigins,
@@ -94,11 +150,16 @@ func main() {
 		DevicesHandler:  devicesHandler,
 		DevicesService:  devicesSvc,
 		MQTTHandler:     mqttHandler,
+		FirmwareHandler: firmwareHandler,
+		DeploymentHandler: deploymentHandler,
+		NotificationHandler: notificationHandler,
+		SyncHandler:       syncHandler,
+		BackupHandler:     backupHandler,
 		StartedAt:       time.Now(),
 		Logger:          log,
 	})
 
-	bgWorker := worker.New(db, log)
+	bgWorker := worker.New(db, log, deploymentSvc, notificationSvc, backupSvc)
 	workerCtx, cancelWorker := context.WithCancel(context.Background())
 	go bgWorker.Run(workerCtx)
 
@@ -146,6 +207,29 @@ func selectCache(redisURL string, log *slog.Logger) cache.Cache {
 	}
 	log.Info("cache_backend_redis")
 	return redisCache
+}
+
+type notificationsPrefsAdapter struct {
+	db *gorm.DB
+}
+
+func (a *notificationsPrefsAdapter) GetNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]string, *string, *string, error) {
+	var u models.User
+	if err := a.db.Where("id = ?", userID).First(&u).Error; err != nil {
+		return nil, nil, nil, err
+	}
+
+	var phone models.UserPhone
+	_ = a.db.Where("user_id = ? AND revoked_at IS NULL AND push_token IS NOT NULL", userID).Order("last_seen_at DESC").First(&phone)
+
+	var pushToken *string
+	if phone.PushToken != nil {
+		pushToken = phone.PushToken
+	}
+
+	enabledTypes := []string{"firmware", "device", "automation", "schedule", "user", "system"}
+
+	return enabledTypes, pushToken, &u.Email, nil
 }
 
 func selectMQTTAdapter(mqttCfg config.MQTTConfig, log *slog.Logger) mqttadapter.Adapter {

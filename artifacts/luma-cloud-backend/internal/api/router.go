@@ -14,6 +14,11 @@ import (
 	"github.com/google/uuid"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
 	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
+	deploymentengine "github.com/luma-smart-home/cloud-backend/internal/engines/deployment"
+	firmwareengine "github.com/luma-smart-home/cloud-backend/internal/engines/firmware"
+	notificationengine "github.com/luma-smart-home/cloud-backend/internal/engines/notifications"
+	syncengine "github.com/luma-smart-home/cloud-backend/internal/engines/sync"
+	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
 	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	usersengine "github.com/luma-smart-home/cloud-backend/internal/engines/users"
 	"github.com/luma-smart-home/cloud-backend/internal/httputil"
@@ -41,6 +46,11 @@ type Config struct {
 	DevicesHandler    *devicesengine.Handler
 	DevicesService    *devicesengine.Service
 	MQTTHandler       *mqttengine.Handler
+	FirmwareHandler   *firmwareengine.Handler
+	DeploymentHandler *deploymentengine.Handler
+	NotificationHandler *notificationengine.Handler
+	SyncHandler       *syncengine.Handler
+	BackupHandler     *backupengine.Handler
 	StartedAt         time.Time
 	Logger            *slog.Logger
 }
@@ -81,6 +91,26 @@ func NewRouter(cfg Config) *gin.Engine {
 	cfg.DevicesHandler.RegisterRoutes(devicesGroup)
 	devicesGatewayGroup := root.Group("/api/engines/devices", requireAuth)
 	cfg.DevicesHandler.RegisterRoutes(devicesGatewayGroup)
+
+	firmwareGroup := root.Group("/firmware")
+	firmwareGatewayGroup := root.Group("/api/engines/firmware")
+	cfg.FirmwareHandler.RegisterRoutes(firmwareGroup, firmwareGatewayGroup, requireAuth)
+
+	deploymentGroup := root.Group("/deployments")
+	deploymentGatewayGroup := root.Group("/api/engines/deployments")
+	cfg.DeploymentHandler.RegisterRoutes(deploymentGroup, deploymentGatewayGroup, requireAuth)
+
+	notificationGroup := root.Group("/notifications")
+	notificationGatewayGroup := root.Group("/api/engines/notifications")
+	cfg.NotificationHandler.RegisterRoutes(notificationGroup, notificationGatewayGroup, requireAuth)
+
+	syncGroup := root.Group("/sync")
+	syncGatewayGroup := root.Group("/api/engines/sync")
+	cfg.SyncHandler.RegisterRoutes(syncGroup, syncGatewayGroup, requireAuth)
+
+	backupGroup := root.Group("/backups")
+	backupGatewayGroup := root.Group("/api/engines/backups")
+	cfg.BackupHandler.RegisterRoutes(backupGroup, backupGatewayGroup, requireAuth)
 
 	mqttGroup := root.Group("/engines/mqtt")
 	cfg.MQTTHandler.RegisterRoutes(mqttGroup)

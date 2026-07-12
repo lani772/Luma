@@ -12,20 +12,28 @@ import (
 	"gorm.io/gorm"
 )
 
-type Worker struct {
-	db  *gorm.DB
-	log *slog.Logger
+type Job interface {
+	Tick(ctx context.Context)
 }
 
-func New(db *gorm.DB, log *slog.Logger) *Worker {
-	return &Worker{db: db, log: log}
+type Worker struct {
+	db   *gorm.DB
+	log  *slog.Logger
+	jobs []Job
+}
+
+func New(db *gorm.DB, log *slog.Logger, jobs ...Job) *Worker {
+	return &Worker{db: db, log: log, jobs: jobs}
 }
 
 // Run blocks until ctx is cancelled, ticking each registered job on its own
 // interval. Call it in a goroutine from main.go.
 func (w *Worker) Run(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
+	tokenTicker := time.NewTicker(1 * time.Hour)
+	defer tokenTicker.Stop()
+
+	jobTicker := time.NewTicker(10 * time.Second) // quick check for campaign status and retries
+	defer jobTicker.Stop()
 
 	w.cleanupExpiredTokens() // run once at startup too
 	for {
@@ -33,8 +41,12 @@ func (w *Worker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			w.log.Info("worker_stopped")
 			return
-		case <-ticker.C:
+		case <-tokenTicker.C:
 			w.cleanupExpiredTokens()
+		case <-jobTicker.C:
+			for _, job := range w.jobs {
+				job.Tick(ctx)
+			}
 		}
 	}
 }
