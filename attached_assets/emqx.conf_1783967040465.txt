@@ -1,0 +1,322 @@
+## ============================================================
+## EMQX 5.x Main Configuration
+## IoT MQTT Platform – Task 5: MQTT Broker Setup
+## File: broker/config/emqx.conf
+## ============================================================
+
+## ─── Node Identity ───────────────────────────────────────────
+node {
+  name       = "emqx@node1.mqtt.internal"
+  cookie     = "${env:EMQX_NODE_COOKIE}"   # Cluster auth token – set via env
+  data_dir   = "/var/lib/emqx"
+  log_dir    = "/var/log/emqx"
+}
+
+## ─── Cluster Configuration ───────────────────────────────────
+cluster {
+  name       = "iot-mqtt-cluster"
+  discovery_strategy = manual              # Use static node list (K8s: use dns)
+
+  ## For Kubernetes deployment, switch to:
+  ## discovery_strategy = dns
+  ## dns { name = "emqx.mqtt-system.svc.cluster.local", record_type = srv }
+
+  static {
+    seeds = [
+      "emqx@node1.mqtt.internal",
+      "emqx@node2.mqtt.internal",
+      "emqx@node3.mqtt.internal"
+    ]
+  }
+}
+
+## ─── Listeners ───────────────────────────────────────────────
+
+## Plain MQTT – development only, disabled in production
+listeners.tcp.default {
+  bind             = "0.0.0.0:1883"
+  max_connections  = 1024000
+  enable           = true               # Set false in production
+}
+
+## MQTT over TLS – required for production
+listeners.ssl.default {
+  bind             = "0.0.0.0:8883"
+  max_connections  = 1024000
+  enable           = true
+
+  ssl_options {
+    keyfile    = "/etc/emqx/certs/server.key"
+    certfile   = "/etc/emqx/certs/server.crt"
+    cacertfile = "/etc/emqx/certs/ca.crt"
+
+    ## Require client to present a certificate (set true for mutual TLS)
+    verify     = verify_none            # Change to verify_peer for mTLS
+    fail_if_no_peer_cert = false
+
+    ## TLS 1.3 only in production
+    versions   = ["tlsv1.3", "tlsv1.2"]
+    ciphers    = [
+      "TLS_AES_256_GCM_SHA384",
+      "TLS_AES_128_GCM_SHA256",
+      "TLS_CHACHA20_POLY1305_SHA256"
+    ]
+  }
+}
+
+## MQTT over WebSocket – for dashboard/browser clients
+listeners.ws.default {
+  bind             = "0.0.0.0:8083"
+  max_connections  = 102400
+  enable           = true
+  websocket.path   = "/mqtt"
+}
+
+## MQTT over WebSocket + TLS
+listeners.wss.default {
+  bind             = "0.0.0.0:8084"
+  max_connections  = 102400
+  enable           = true
+  websocket.path   = "/mqtt"
+
+  ssl_options {
+    keyfile    = "/etc/emqx/certs/server.key"
+    certfile   = "/etc/emqx/certs/server.crt"
+    cacertfile = "/etc/emqx/certs/ca.crt"
+    versions   = ["tlsv1.3", "tlsv1.2"]
+  }
+}
+
+## ─── Authentication ──────────────────────────────────────────
+## Devices authenticate via HTTP hook → Go backend validates credentials
+
+authentication = [
+  {
+    mechanism = password_based
+    backend   = http
+
+    url    = "http://mqtt-backend:8081/auth/mqtt"
+    method = post
+
+    headers {
+      "Content-Type" = "application/json"
+      "X-Auth-Token" = "${env:EMQX_HOOK_TOKEN}"
+    }
+
+    body {
+      username   = "${username}"
+      password   = "${password}"
+      clientid   = "${clientid}"
+      peerhost   = "${peerhost}"
+      proto_name = "${proto_name}"
+      proto_ver  = "${proto_ver}"
+    }
+
+    ## Timeouts and retries
+    connect_timeout  = "5s"
+    request_timeout  = "10s"
+    pool_size        = 32
+
+    ## Cache successful authentications to reduce hook calls
+    enable_pipelining = true
+  }
+]
+
+## ─── Authorization (Topic ACL) ───────────────────────────────
+
+authorization {
+  no_match = deny                       # Deny anything not explicitly allowed
+  deny_action = disconnect              # Disconnect client on ACL violation
+
+  cache {
+    enable   = true
+    max_size = 32                        # Max cached rules per client
+    ttl      = "1m"
+  }
+
+  sources = [
+    ## HTTP ACL hook – calls Go backend for topic permission checks
+    {
+      type   = http
+      enable = true
+
+      url    = "http://mqtt-backend:8081/auth/acl"
+      method = post
+
+      headers {
+        "Content-Type" = "application/json"
+        "X-Auth-Token" = "${env:EMQX_HOOK_TOKEN}"
+      }
+
+      body {
+        username = "${username}"
+        clientid = "${clientid}"
+        topic    = "${topic}"
+        action   = "${action}"
+        peerhost = "${peerhost}"
+      }
+
+      connect_timeout = "5s"
+      request_timeout = "10s"
+      pool_size       = 32
+    },
+    ## File-based ACL fallback (for backend service account)
+    {
+      type   = file
+      enable = true
+      path   = "/etc/emqx/acl/acl.conf"
+    }
+  ]
+}
+
+## ─── MQTT Protocol Settings ──────────────────────────────────
+
+mqtt {
+  ## Maximum packet size (must align with plan limits)
+  max_packet_size          = "8KB"
+
+  ## Session settings
+  max_clientid_len         = 64
+  max_topic_levels         = 7
+  max_topic_alias          = 10
+  retain_available         = true
+  wildcard_subscription    = true      # Needed for backend subscriptions
+  shared_subscription      = true      # Load-balanced subscriptions across backend replicas
+
+  ## QoS settings
+  max_qos_allowed          = 2
+
+  ## Keep-alive
+  keepalive_multiplier     = 1.5       # Grace factor: disconnect after 1.5 * keepalive
+  keepalive_check_interval = "30s"
+
+  ## Message queue (for offline devices with persistent sessions)
+  max_mqueue_len           = 1000
+  mqueue_priorities        = disabled
+  mqueue_store_qos0        = false     # Don't queue QoS0 for offline devices
+
+  ## Session expiry
+  session_expiry_interval  = "2h"      # Persistent session held for 2 hours
+}
+
+## ─── Broker-Level Rate Limiting ─────────────────────────────
+## Note: Per-device rate limiting is handled by the Go backend (Redis).
+## This is a coarse broker-level protection.
+
+listeners.tcp.default.limiter {
+  connection {
+    rate = "1000/s"                    # Max 1000 new connections per second
+    burst = 500
+  }
+  message_routing {
+    rate = "100000/s"                  # Max 100k messages per second globally
+    burst = 50000
+  }
+}
+
+## ─── Persistence ─────────────────────────────────────────────
+
+## Built-in database for session/retained message persistence
+durable_storage {
+  backend = builtin
+  builtin {
+    session = {
+      session_gc_batch_size = 100
+    }
+  }
+}
+
+## ─── Logging ─────────────────────────────────────────────────
+
+log {
+  console {
+    enable    = true
+    level     = info                   # debug | info | warning | error
+    formatter = json                   # JSON for log aggregation (ELK/Loki)
+  }
+
+  file {
+    enable    = true
+    level     = warning
+    path      = "/var/log/emqx/emqx.log"
+    rotation_size = "100MB"
+    rotation_count = 10
+  }
+}
+
+## ─── Dashboard & API ─────────────────────────────────────────
+
+dashboard {
+  listeners.http {
+    bind = "0.0.0.0:18083"
+  }
+  ## In production: disable or restrict dashboard to internal network only
+  ## default admin password changed via env or first-boot setup
+  default_username = "admin"
+  default_password = "${env:EMQX_DASHBOARD_PASSWORD}"
+}
+
+## Management API (used by monitoring and automation)
+management {
+  listeners.http {
+    bind = "127.0.0.1:8081"          # Internal only
+  }
+}
+
+## ─── Prometheus Metrics ──────────────────────────────────────
+
+prometheus {
+  enable           = true
+  push_gateway_server = "http://prometheus-pushgateway:9091"
+  interval         = "15s"
+
+  ## Or expose pull endpoint:
+  ## listeners.http.bind = "0.0.0.0:9100"
+}
+
+## ─── Hooks (Event Webhooks to Go Backend) ────────────────────
+## EMQX fires these events; Go backend processes device lifecycle
+
+webhook {
+  enable = true
+  url    = "http://mqtt-backend:8082/hooks/emqx"
+
+  headers {
+    "Content-Type" = "application/json"
+    "X-Hook-Token" = "${env:EMQX_HOOK_TOKEN}"
+  }
+
+  pool_size       = 16
+  connect_timeout = "5s"
+  request_timeout = "10s"
+
+  ## Retry failed webhook deliveries
+  max_retries     = 3
+  retry_interval  = "1s"
+
+  ## Events to forward to Go backend
+  events = [
+    { event = "client.connected",    qos = 1 },
+    { event = "client.disconnected", qos = 1 },
+    { event = "client.subscribe",    qos = 0 },
+    { event = "client.unsubscribe",  qos = 0 },
+    { event = "message.dropped",     qos = 0 },
+  ]
+}
+
+## ─── Overload Protection ─────────────────────────────────────
+
+overload_protection {
+  enable          = true
+  backoff_delay   = "1s"
+  backoff_gc      = false
+
+  ## Shed load when CPU > 80% or memory > 70%
+  cpu_high_watermark    = 0.80
+  mem_high_watermark    = 0.70
+}
+
+force_shutdown_policy {
+  max_heap_size         = "32MB"        # Per-connection heap limit
+  max_message_queue_len = 10000
+}
