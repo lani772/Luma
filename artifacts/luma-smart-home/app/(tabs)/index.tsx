@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, Vi
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { C } from "@/constants/colors";
 import { useLuma } from "@/context/LumaContext";
+import { useCloudAuth } from "@/context/CloudAuthContext";
 import BarChart from "@/components/BarChart";
 import CommsStatusPanel from "@/components/CommsStatusPanel";
 import { ACTIVITY_LOG, ENERGY_WEEKLY, ROOMS, timeAgo } from "@/data/luma-data";
@@ -33,7 +34,9 @@ function getDate() {
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { lamps, scenes, notifications, activateScene } = useLuma();
+  const { user } = useCloudAuth();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const firstName = user?.fullName?.split(" ")[0] ?? user?.email?.split("@")[0] ?? "there";
 
   const activeLamps = lamps.filter(l => l.on).length;
   const onlineLamps = lamps.filter(l => l.online).length;
@@ -57,7 +60,7 @@ export default function DashboardScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Greeting */}
         <View style={styles.greetBlock}>
-          <Text style={styles.greeting}>{getGreeting()}, Alex</Text>
+          <Text style={styles.greeting}>{getGreeting()}, {firstName}</Text>
           <Text style={styles.date}>{getDate()}</Text>
         </View>
 

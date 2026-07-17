@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { Platform, StatusBar, View } from "react-native";
@@ -16,7 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InstallBanner } from "@/components/InstallBanner";
-import { CloudAuthProvider } from "@/context/CloudAuthContext";
+import { CloudAuthProvider, useCloudAuth } from "@/context/CloudAuthContext";
 import { LumaProvider } from "@/context/LumaContext";
 import { ConnectivityProvider } from "@/context/ConnectivityContext";
 import { MQTTProvider } from "@/context/MQTTContext";
@@ -25,6 +25,38 @@ import { C } from "@/constants/colors";
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+// ── Public routes that don't require authentication ──────────────────────────
+const PUBLIC_SEGMENTS = new Set([
+  "login",
+  "forgot-password",
+  "verify-email",
+  "+not-found",
+]);
+
+// ── Auth guard ───────────────────────────────────────────────────────────────
+// Must be rendered inside the Stack (and therefore inside CloudAuthProvider).
+function AuthGuard() {
+  const { isAuthenticated, isLoading } = useCloudAuth();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (isLoading) return; // wait for session restore
+
+    const currentSegment = segments[0] as string | undefined;
+    const inPublicRoute = !currentSegment || PUBLIC_SEGMENTS.has(currentSegment);
+
+    if (!isAuthenticated && !inPublicRoute) {
+      // Not signed in — send to login
+      router.replace("/login");
+    } else if (isAuthenticated && currentSegment === "login") {
+      // Already signed in — send to home
+      router.replace("/");
+    }
+  }, [isAuthenticated, isLoading, segments]);
+
+  return null;
+}
 
 function registerSW() {
   if (Platform.OS !== "web") return;
@@ -38,7 +70,6 @@ function injectPWAMeta() {
   if (Platform.OS !== "web" || typeof document === "undefined") return;
   const head = document.head;
 
-  // Manifest link
   if (!document.querySelector('link[rel="manifest"]')) {
     const ml = document.createElement("link");
     ml.rel = "manifest";
@@ -46,7 +77,6 @@ function injectPWAMeta() {
     head.appendChild(ml);
   }
 
-  // Apple mobile web app meta tags
   const setMeta = (name: string, content: string) => {
     if (document.querySelector(`meta[name="${name}"]`)) return;
     const m = document.createElement("meta");
@@ -62,7 +92,6 @@ function injectPWAMeta() {
   setMeta("application-name", "LUMA Smart Home");
   setMeta("msapplication-TileColor", "#0A0E1A");
 
-  // Apple touch icon
   if (!document.querySelector('link[rel="apple-touch-icon"]')) {
     const ai = document.createElement("link");
     ai.rel = "apple-touch-icon";
@@ -75,31 +104,45 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      {/* Auth guard sits outside the Stack so it can watch segments and redirect */}
+      <AuthGuard />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: C.bg } }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="device/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="mqtt" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="health" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="scenes" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="rooms" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="activity" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="access" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="roles" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="settings" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="microcontrollers" options={{ headerShown: false, animation: "slide_from_right" }} />
+        {/* Auth screens */}
+        <Stack.Screen name="login"            options={{ headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="forgot-password"  options={{ headerShown: false, animation: "slide_from_bottom" }} />
+        <Stack.Screen name="verify-email"     options={{ headerShown: false, animation: "slide_from_bottom" }} />
+        {/* User & account screens */}
+        <Stack.Screen name="no-devices"       options={{ headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="profile"          options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="security-settings" options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="delete-account"   options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="invitations"      options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="ownership-transfer" options={{ headerShown: false, animation: "slide_from_right" }} />
+        {/* Existing screens */}
+        <Stack.Screen name="device/[id]"              options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mqtt"                     options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="health"                   options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="scenes"                   options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="rooms"                    options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="notifications"            options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="activity"                 options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="access"                   options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="roles"                    options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="settings"                 options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="microcontrollers"         options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="microcontroller-register" options={{ headerShown: false, animation: "slide_from_right" }} />
         <Stack.Screen name="microcontroller-workspace" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="mc-device-register" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="mc-device" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="lamps-manager" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="lamp-add" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="device-register" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="connectivity" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="wifi-setup" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="mesh" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="network-monitor" options={{ headerShown: false, animation: "slide_from_right" }} />
-        <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
+        <Stack.Screen name="mc-device-register"       options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mc-device"                options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="lamps-manager"            options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="lamp-add"                 options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="device-register"          options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="connectivity"             options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="wifi-setup"               options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="mesh"                     options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="network-monitor"          options={{ headerShown: false, animation: "slide_from_right" }} />
+        <Stack.Screen name="device-permissions"       options={{ headerShown: false, animation: "slide_from_right" }} />
       </Stack>
       <InstallBanner />
     </>
