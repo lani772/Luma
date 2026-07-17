@@ -34,8 +34,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8000 pnpm --filter @workspace/luma-smart-home run dev"
-waitForPort = 8000
+args = "PORT=20792 pnpm --filter @workspace/luma-smart-home run dev"
+waitForPort = 20792
 
 [workflows.workflow.metadata]
 outputType = "console"
@@ -58,8 +58,8 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/luma-cloud-backend && CLOUD_API_PORT=8099 go run ./cmd/api"
-waitForPort = 8099
+args = "cd artifacts/luma-cloud-backend && CLOUD_API_PORT=8090 go run ./cmd/api"
+waitForPort = 8090
 
 [workflows.workflow.metadata]
 outputType = "console"
