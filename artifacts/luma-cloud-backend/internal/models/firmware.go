@@ -7,54 +7,46 @@ import (
 )
 
 type FirmwareRelease struct {
-	ID               uuid.UUID  `gorm:"column:id;primaryKey"`
-	DeviceType       string     `gorm:"column:device_type"`
-	Version          string     `gorm:"column:version"`
-	Channel          string     `gorm:"column:channel"`
-	StoragePath      string     `gorm:"column:storage_path"`
-	ChecksumSHA256   string     `gorm:"column:checksum_sha256"`
-	Signature        *string    `gorm:"column:signature"`
-	SizeBytes        int64      `gorm:"column:size_bytes"`
-	ReleaseNotes     *string    `gorm:"column:release_notes"`
-	IsRollbackTarget bool       `gorm:"column:is_rollback_target"`
-	CreatedBy        *uuid.UUID `gorm:"column:created_by"`
-	CreatedAt        time.Time  `gorm:"column:created_at"`
+	ID               uuid.UUID  `bson:"_id"`
+	DeviceType       string     `bson:"device_type"`
+	Version          string     `bson:"version"`
+	Channel          string     `bson:"channel"`
+	StoragePath      string     `bson:"storage_path"`
+	ChecksumSHA256   string     `bson:"checksum_sha256"`
+	Signature        *string    `bson:"signature,omitempty"`
+	SizeBytes        int64      `bson:"size_bytes"`
+	ReleaseNotes     *string    `bson:"release_notes,omitempty"`
+	IsRollbackTarget bool       `bson:"is_rollback_target"`
+	CreatedBy        *uuid.UUID `bson:"created_by,omitempty"`
+	CreatedAt        time.Time  `bson:"created_at"`
 }
-
-func (FirmwareRelease) TableName() string { return "firmware_releases" }
 
 type FirmwareDownload struct {
-	ID           uuid.UUID  `gorm:"column:id;primaryKey"`
-	FirmwareID   uuid.UUID  `gorm:"column:firmware_id"`
-	DeviceID     *uuid.UUID `gorm:"column:device_id"`
-	IPAddress    *string    `gorm:"column:ip_address"`
-	DownloadedAt time.Time  `gorm:"column:downloaded_at"`
+	ID           uuid.UUID  `bson:"_id"`
+	FirmwareID   uuid.UUID  `bson:"firmware_id"`
+	DeviceID     *uuid.UUID `bson:"device_id,omitempty"`
+	IPAddress    *string    `bson:"ip_address,omitempty"`
+	DownloadedAt time.Time  `bson:"downloaded_at"`
 }
-
-func (FirmwareDownload) TableName() string { return "firmware_downloads" }
 
 type FirmwareDeployment struct {
-	ID                uuid.UUID  `gorm:"column:id;primaryKey"`
-	FirmwareID        uuid.UUID  `gorm:"column:firmware_id"`
-	Name              string     `gorm:"column:name"`
-	Status            string     `gorm:"column:status"`
-	RolloutPercentage int        `gorm:"column:rollout_percentage"`
-	ScheduledAt       *time.Time `gorm:"column:scheduled_at"`
-	CreatedAt         time.Time  `gorm:"column:created_at"`
-	UpdatedAt         time.Time  `gorm:"column:updated_at"`
+	ID                uuid.UUID  `bson:"_id"`
+	FirmwareID        uuid.UUID  `bson:"firmware_id"`
+	Name              string     `bson:"name"`
+	Status            string     `bson:"status"`
+	RolloutPercentage int        `bson:"rollout_percentage"`
+	ScheduledAt       *time.Time `bson:"scheduled_at,omitempty"`
+	CreatedAt         time.Time  `bson:"created_at"`
+	UpdatedAt         time.Time  `bson:"updated_at"`
 }
-
-func (FirmwareDeployment) TableName() string { return "firmware_deployments" }
 
 type DeviceDeployment struct {
-	ID           uuid.UUID `gorm:"column:id;primaryKey"`
-	DeploymentID uuid.UUID `gorm:"column:deployment_id"`
-	DeviceID     uuid.UUID `gorm:"column:device_id"`
-	Status       string    `gorm:"column:status"`
-	ErrorMessage *string   `gorm:"column:error_message"`
-	Retries      int       `gorm:"column:retries"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at"`
+	ID           uuid.UUID `bson:"_id"`
+	DeploymentID uuid.UUID `bson:"deployment_id"`
+	DeviceID     uuid.UUID `bson:"device_id"`
+	Status       string    `bson:"status"`
+	ErrorMessage *string   `bson:"error_message,omitempty"`
+	Retries      int       `bson:"retries"`
+	CreatedAt    time.Time `bson:"created_at"`
+	UpdatedAt    time.Time `bson:"updated_at"`
 }
-
-func (DeviceDeployment) TableName() string { return "device_deployments" }

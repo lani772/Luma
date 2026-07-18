@@ -9,7 +9,8 @@ import (
 	"log/slog"
 	"time"
 
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Job interface {
@@ -17,12 +18,12 @@ type Job interface {
 }
 
 type Worker struct {
-	db   *gorm.DB
+	db   *mongo.Database
 	log  *slog.Logger
 	jobs []Job
 }
 
-func New(db *gorm.DB, log *slog.Logger, jobs ...Job) *Worker {
+func New(db *mongo.Database, log *slog.Logger, jobs ...Job) *Worker {
 	return &Worker{db: db, log: log, jobs: jobs}
 }
 
@@ -52,21 +53,22 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 // cleanupExpiredTokens deletes long-expired sessions/reset/verification
-// tokens so those tables don't grow unbounded. Rows are kept for a 7-day
-// grace period past expiry in case they're ever needed for support/audit
-// investigation.
+// tokens so those collections don't grow unbounded. Rows are kept for a
+// 7-day grace period past expiry in case they're ever needed for audit.
 func (w *Worker) cleanupExpiredTokens() {
+	ctx := context.Background()
 	cutoff := time.Now().Add(-7 * 24 * time.Hour)
+	filter := bson.M{"expires_at": bson.M{"$lt": cutoff}}
 
-	tables := []string{"sessions", "password_reset_tokens", "email_verification_tokens"}
-	for _, table := range tables {
-		res := w.db.Exec("DELETE FROM "+table+" WHERE expires_at < ?", cutoff)
-		if res.Error != nil {
-			w.log.Error("token_cleanup_failed", "table", table, "error", res.Error)
+	collections := []string{"sessions", "password_reset_tokens", "email_verification_tokens"}
+	for _, name := range collections {
+		res, err := w.db.Collection(name).DeleteMany(ctx, filter)
+		if err != nil {
+			w.log.Error("token_cleanup_failed", "collection", name, "error", err)
 			continue
 		}
-		if res.RowsAffected > 0 {
-			w.log.Info("token_cleanup", "table", table, "rowsDeleted", res.RowsAffected)
+		if res.DeletedCount > 0 {
+			w.log.Info("token_cleanup", "collection", name, "deleted", res.DeletedCount)
 		}
 	}
 }

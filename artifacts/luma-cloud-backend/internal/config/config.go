@@ -23,7 +23,9 @@ type Config struct {
 	Env  string // "development" | "production"
 	Port string
 
-	DatabaseURL string
+	// MongoURI is the MongoDB Atlas connection string (mongodb+srv://...).
+	// Set via the MONGODB_URI secret in Replit.
+	MongoURI string
 
 	// RedisURL is optional. When empty, the cache layer falls back to an
 	// in-memory implementation and logs a visible warning — the fallback is
@@ -73,6 +75,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: SESSION_SECRET is required (used to derive JWT signing keys)")
 	}
 
+	mongoURI := strings.Trim(os.Getenv("MONGODB_URI"), `"' `)
+	if mongoURI == "" {
+		return nil, fmt.Errorf("config: MONGODB_URI is required (MongoDB Atlas connection string)")
+	}
+
 	accessTTL, err := time.ParseDuration(getenv("JWT_ACCESS_TTL", "15m"))
 	if err != nil {
 		return nil, fmt.Errorf("config: invalid JWT_ACCESS_TTL: %w", err)
@@ -91,16 +98,11 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: invalid RATE_LIMIT_BURST: %w", err)
 	}
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return nil, fmt.Errorf("config: DATABASE_URL is required")
-	}
-
 	cfg := &Config{
-		Env:         env,
-		Port:        getenv("CLOUD_API_PORT", "8090"),
-		DatabaseURL: dbURL,
-		RedisURL:    os.Getenv("REDIS_URL"),
+		Env:      env,
+		Port:     getenv("CLOUD_API_PORT", "8090"),
+		MongoURI: mongoURI,
+		RedisURL: os.Getenv("REDIS_URL"),
 		JWT: JWTConfig{
 			AccessSecret:  sessionSecret,
 			RefreshSecret: deriveSecret(sessionSecret, "luma-refresh-token-v1"),

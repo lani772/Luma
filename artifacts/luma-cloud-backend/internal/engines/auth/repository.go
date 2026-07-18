@@ -1,92 +1,116 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Repository struct {
-	db *gorm.DB
+	db *mongo.Database
 }
 
-func NewRepository(db *gorm.DB) *Repository {
+func NewRepository(db *mongo.Database) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) col(name string) *mongo.Collection {
+	return r.db.Collection(name)
+}
+
 func (r *Repository) CreateUser(u *models.User) error {
-	return r.db.Create(u).Error
+	_, err := r.col("users").InsertOne(context.Background(), u)
+	return err
 }
 
 func (r *Repository) FindUserByEmail(email string) (*models.User, error) {
 	var u models.User
-	err := r.db.Where("email = ?", email).First(&u).Error
-	if err != nil {
+	err := r.col("users").FindOne(context.Background(), bson.M{"email": email}).Decode(&u)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &u, nil
+	return &u, err
 }
 
 func (r *Repository) FindUserByUsername(username string) (*models.User, error) {
 	var u models.User
-	err := r.db.Where("username = ?", username).First(&u).Error
-	if err != nil {
+	err := r.col("users").FindOne(context.Background(), bson.M{"username": username}).Decode(&u)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &u, nil
+	return &u, err
 }
 
 func (r *Repository) UsernameExists(username string) (bool, error) {
-	var count int64
-	err := r.db.Model(&models.User{}).Where("username = ?", username).Count(&count).Error
+	count, err := r.col("users").CountDocuments(context.Background(), bson.M{"username": username})
 	return count > 0, err
 }
 
 func (r *Repository) FindUserByID(id string) (*models.User, error) {
-	var u models.User
-	err := r.db.Where("id = ?", id).First(&u).Error
+	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
 	}
-	return &u, nil
+	var u models.User
+	err = r.col("users").FindOne(context.Background(), bson.M{"_id": parsed}).Decode(&u)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, err
+	}
+	return &u, err
 }
 
 func (r *Repository) UpdateUserPassword(userID uuid.UUID, passwordHash string) error {
-	return r.db.Model(&models.User{}).Where("id = ?", userID).
-		Updates(map[string]any{"password_hash": passwordHash, "updated_at": time.Now()}).Error
+	_, err := r.col("users").UpdateOne(context.Background(),
+		bson.M{"_id": userID},
+		bson.M{"$set": bson.M{"password_hash": passwordHash, "updated_at": time.Now()}},
+	)
+	return err
 }
 
 func (r *Repository) MarkEmailVerified(userID uuid.UUID) error {
 	now := time.Now()
-	return r.db.Model(&models.User{}).Where("id = ?", userID).
-		Updates(map[string]any{"email_verified_at": now, "updated_at": now}).Error
+	_, err := r.col("users").UpdateOne(context.Background(),
+		bson.M{"_id": userID},
+		bson.M{"$set": bson.M{"email_verified_at": now, "updated_at": now}},
+	)
+	return err
 }
 
 func (r *Repository) CreatePhone(p *models.UserPhone) error {
-	return r.db.Create(p).Error
+	_, err := r.col("user_phones").InsertOne(context.Background(), p)
+	return err
 }
 
 // FindOrCreatePhone reuses an existing (unrevoked) phone row for the same
 // user+device+platform so repeated logins from the same physical phone don't
-// pile up duplicate phone rows — this is what lets "multiple phones" mean
-// "multiple distinct devices", not "one row per login".
+// pile up duplicate phone rows.
 func (r *Repository) FindOrCreatePhone(userID uuid.UUID, deviceName, platform, pushToken string) (*models.UserPhone, error) {
+	ctx := context.Background()
 	var phone models.UserPhone
-	err := r.db.Where("user_id = ? AND device_name = ? AND platform = ? AND revoked_at IS NULL", userID, deviceName, platform).
-		First(&phone).Error
+	err := r.col("user_phones").FindOne(ctx, bson.M{
+		"user_id":     userID,
+		"device_name": deviceName,
+		"platform":    platform,
+		"revoked_at":  nil,
+	}).Decode(&phone)
+
 	if err == nil {
-		updates := map[string]any{"last_seen_at": time.Now()}
+		updates := bson.M{"last_seen_at": time.Now()}
 		if pushToken != "" {
 			updates["push_token"] = pushToken
 		}
-		if err := r.db.Model(&phone).Updates(updates).Error; err != nil {
-			return nil, err
+		if _, err2 := r.col("user_phones").UpdateOne(ctx, bson.M{"_id": phone.ID}, bson.M{"$set": updates}); err2 != nil {
+			return nil, err2
 		}
 		return &phone, nil
 	}
-	if err != gorm.ErrRecordNotFound {
+	if !errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
 
@@ -102,78 +126,108 @@ func (r *Repository) FindOrCreatePhone(userID uuid.UUID, deviceName, platform, p
 	if pushToken != "" {
 		phone.PushToken = &pushToken
 	}
-	if err := r.db.Create(&phone).Error; err != nil {
-		return nil, err
+	if _, err2 := r.col("user_phones").InsertOne(ctx, &phone); err2 != nil {
+		return nil, err2
 	}
 	return &phone, nil
 }
 
 func (r *Repository) ListPhonesForUser(userID uuid.UUID) ([]models.UserPhone, error) {
+	ctx := context.Background()
+	opts := options.Find().SetSort(bson.D{{Key: "last_seen_at", Value: -1}})
+	cursor, err := r.col("user_phones").Find(ctx, bson.M{"user_id": userID, "revoked_at": nil}, opts)
+	if err != nil {
+		return nil, err
+	}
 	var phones []models.UserPhone
-	err := r.db.Where("user_id = ? AND revoked_at IS NULL", userID).Order("last_seen_at DESC").Find(&phones).Error
-	return phones, err
+	return phones, cursor.All(ctx, &phones)
 }
 
 func (r *Repository) CreateSession(s *models.Session) error {
-	return r.db.Create(s).Error
+	_, err := r.col("sessions").InsertOne(context.Background(), s)
+	return err
 }
 
 func (r *Repository) FindSessionByRefreshHash(hash string) (*models.Session, error) {
 	var s models.Session
-	err := r.db.Where("refresh_token_hash = ?", hash).First(&s).Error
-	if err != nil {
+	err := r.col("sessions").FindOne(context.Background(), bson.M{"refresh_token_hash": hash}).Decode(&s)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &s, nil
+	return &s, err
 }
 
 func (r *Repository) RevokeSession(id uuid.UUID) error {
-	return r.db.Model(&models.Session{}).Where("id = ?", id).Update("revoked_at", time.Now()).Error
+	_, err := r.col("sessions").UpdateOne(context.Background(),
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"revoked_at": time.Now()}},
+	)
+	return err
 }
 
 func (r *Repository) RevokeAllSessionsForUser(userID uuid.UUID) error {
-	return r.db.Model(&models.Session{}).
-		Where("user_id = ? AND revoked_at IS NULL", userID).
-		Update("revoked_at", time.Now()).Error
+	_, err := r.col("sessions").UpdateMany(context.Background(),
+		bson.M{"user_id": userID, "revoked_at": nil},
+		bson.M{"$set": bson.M{"revoked_at": time.Now()}},
+	)
+	return err
 }
 
 func (r *Repository) ListActiveSessionsForUser(userID uuid.UUID) ([]models.Session, error) {
+	ctx := context.Background()
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}})
+	cursor, err := r.col("sessions").Find(ctx, bson.M{
+		"user_id":    userID,
+		"revoked_at": nil,
+		"expires_at": bson.M{"$gt": time.Now()},
+	}, opts)
+	if err != nil {
+		return nil, err
+	}
 	var sessions []models.Session
-	err := r.db.Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userID, time.Now()).
-		Order("created_at DESC").Find(&sessions).Error
-	return sessions, err
+	return sessions, cursor.All(ctx, &sessions)
 }
 
 func (r *Repository) CreatePasswordResetToken(t *models.PasswordResetToken) error {
-	return r.db.Create(t).Error
+	_, err := r.col("password_reset_tokens").InsertOne(context.Background(), t)
+	return err
 }
 
 func (r *Repository) FindPasswordResetToken(hash string) (*models.PasswordResetToken, error) {
 	var t models.PasswordResetToken
-	err := r.db.Where("token_hash = ?", hash).First(&t).Error
-	if err != nil {
+	err := r.col("password_reset_tokens").FindOne(context.Background(), bson.M{"token_hash": hash}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &t, nil
+	return &t, err
 }
 
 func (r *Repository) MarkPasswordResetTokenUsed(id uuid.UUID) error {
-	return r.db.Model(&models.PasswordResetToken{}).Where("id = ?", id).Update("used_at", time.Now()).Error
+	_, err := r.col("password_reset_tokens").UpdateOne(context.Background(),
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"used_at": time.Now()}},
+	)
+	return err
 }
 
 func (r *Repository) CreateEmailVerificationToken(t *models.EmailVerificationToken) error {
-	return r.db.Create(t).Error
+	_, err := r.col("email_verification_tokens").InsertOne(context.Background(), t)
+	return err
 }
 
 func (r *Repository) FindEmailVerificationToken(hash string) (*models.EmailVerificationToken, error) {
 	var t models.EmailVerificationToken
-	err := r.db.Where("token_hash = ?", hash).First(&t).Error
-	if err != nil {
+	err := r.col("email_verification_tokens").FindOne(context.Background(), bson.M{"token_hash": hash}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &t, nil
+	return &t, err
 }
 
 func (r *Repository) MarkEmailVerificationTokenUsed(id uuid.UUID) error {
-	return r.db.Model(&models.EmailVerificationToken{}).Where("id = ?", id).Update("used_at", time.Now()).Error
+	_, err := r.col("email_verification_tokens").UpdateOne(context.Background(),
+		bson.M{"_id": id},
+		bson.M{"$set": bson.M{"used_at": time.Now()}},
+	)
+	return err
 }
