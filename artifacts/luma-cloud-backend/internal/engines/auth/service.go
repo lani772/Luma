@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	ErrEmailAlreadyRegistered = errors.New("email already registered")
-	ErrInvalidCredentials     = errors.New("invalid email or password")
-	ErrTokenInvalidOrExpired  = errors.New("token invalid or expired")
-	ErrSessionNotFound        = errors.New("session not found")
+	ErrEmailAlreadyRegistered    = errors.New("email already registered")
+	ErrUsernameAlreadyRegistered = errors.New("username already taken")
+	ErrInvalidCredentials        = errors.New("invalid email or password")
+	ErrTokenInvalidOrExpired     = errors.New("token invalid or expired")
+	ErrSessionNotFound           = errors.New("session not found")
 )
 
 // AuditRecorder is implemented by the Audit Log Engine. Kept as a narrow
@@ -52,6 +53,11 @@ func (s *Service) Register(req RegisterRequest, ip string) (*AuthResponse, error
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("auth: lookup email: %w", err)
 	}
+	if exists, err := s.repo.UsernameExists(req.Username); err != nil {
+		return nil, fmt.Errorf("auth: lookup username: %w", err)
+	} else if exists {
+		return nil, ErrUsernameAlreadyRegistered
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -62,6 +68,7 @@ func (s *Service) Register(req RegisterRequest, ip string) (*AuthResponse, error
 	user := &models.User{
 		ID:               uuid.New(),
 		Email:            req.Email,
+		Username:         &req.Username,
 		PasswordHash:     string(hash),
 		FullName:         req.FullName,
 		Role:             models.RoleOwner,
@@ -75,18 +82,28 @@ func (s *Service) Register(req RegisterRequest, ip string) (*AuthResponse, error
 		return nil, fmt.Errorf("auth: create user: %w", err)
 	}
 
-	s.audit.Record(&user.ID, "user.registered", "user", user.ID.String(), ip, nil)
+	s.audit.Record(&user.ID, "user.registered", "user", user.ID.String(), ip, map[string]any{"username": req.Username})
 
 	return s.startSession(user, req.DeviceName, req.Platform, "", ip)
 }
 
 func (s *Service) Login(req LoginRequest, ip string) (*AuthResponse, error) {
-	user, err := s.repo.FindUserByEmail(req.Email)
+	var user *models.User
+	var err error
+
+	if req.Email != "" {
+		user, err = s.repo.FindUserByEmail(req.Email)
+	} else if req.Username != "" {
+		user, err = s.repo.FindUserByUsername(req.Username)
+	} else {
+		return nil, ErrInvalidCredentials
+	}
+
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrInvalidCredentials
 		}
-		return nil, fmt.Errorf("auth: lookup email: %w", err)
+		return nil, fmt.Errorf("auth: lookup user: %w", err)
 	}
 	if user.Status != models.UserStatusActive {
 		return nil, ErrInvalidCredentials
@@ -394,9 +411,14 @@ func (s *Service) ConfirmEmailVerification(token string) error {
 }
 
 func toUserDTO(u *models.User) UserDTO {
+	username := ""
+	if u.Username != nil {
+		username = *u.Username
+	}
 	return UserDTO{
 		ID:               u.ID.String(),
 		Email:            u.Email,
+		Username:         username,
 		FullName:         u.FullName,
 		Role:             string(u.Role),
 		EmailVerified:    u.EmailVerifiedAt != nil,

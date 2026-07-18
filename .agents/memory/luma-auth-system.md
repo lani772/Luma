@@ -1,6 +1,6 @@
 ---
 name: LUMA auth system
-description: Auth architecture, username handling, token refresh, and new screen inventory added in the auth feature build.
+description: Auth architecture, username handling, token refresh, platform validation, font-loading resilience, and new screen inventory.
 ---
 
 ## Auth guard pattern
@@ -11,11 +11,23 @@ description: Auth architecture, username handling, token refresh, and new screen
 
 ## Username handling
 
-Backend does not store/return a `username` field (as of this build). Username is stored locally at `AsyncStorage` key `@luma/cloud_username`. It is also merged onto the `CloudUser` object in memory (`{ ...auth.user, username }`).
+The Go backend now stores `username` in the `users` table (unique, nullable) and returns it in the `UserDTO`/`AccountDTO` responses. The mobile app prefers the backend username and falls back to the locally stored one.
 
-Login accepts email or username: presence of `@` determines which field is sent to the backend (`email` vs `username`).
+- `RegisterRequest` requires `username` (3–20 chars, alphanumeric + underscore).
+- `LoginRequest` accepts either `email` or `username`.
+- `users/me` profile and account deletion endpoints are implemented.
 
-**Why:** Backend register/login DTOs accept `username` but the `users/me` response does not echo it back yet. Local storage bridges the gap.
+**Why:** Earlier the backend ignored the username field, so the app had to store it locally. Now the backend owns it and enforces uniqueness.
+
+## Platform validation
+
+The Go backend requires `platform` to be one of `ios`, `android`, `web`, or `other`. The mobile app sends `Platform.OS` (which is exactly one of those values on React Native) instead of the invalid `"mobile"`.
+
+**Why:** Sending `"mobile"` caused `RegisterRequest.Platform` validation to fail with the `oneof` tag.
+
+## Font-loading resilience
+
+`app/_layout.tsx` uses `expo-font` `Font.loadAsync` with a 4-second timeout and try/catch fallback instead of the `@expo-google-fonts/inter` `useFonts` hook. If the Inter fonts fail to load, the app still renders with system fonts rather than crashing with a `fontfaceobserver` timeout.
 
 ## Token auto-refresh
 
@@ -25,7 +37,18 @@ Login accepts email or username: presence of `@` determines which field is sent 
 
 `CloudAuthContext.login` / `register` fire `CloudAPI.syncAllData()` as a background promise after setting user state — sign-in does NOT block on sync. `syncAllData` fetches devices, received invitations, and access requests in parallel via `Promise.allSettled`, caches to `@luma/cloud_sync_cache`.
 
-`syncKey` (integer, bumped on each successful sync) is exposed from `CloudAuthContext` for downstream contexts to react to.
+`syncKey` (integer, bumped after each successful sync) is exposed from `CloudAuthContext` for downstream contexts to react to.
+
+## Backend auth endpoints
+
+| Method | Path | Status |
+|---|---|---|
+| POST | `/cloud/auth/register` | Stores username, email, full name, password hash; returns tokens |
+| POST | `/cloud/auth/login` | Accepts email or username; returns tokens |
+| POST | `/cloud/auth/logout` | Revokes refresh token |
+| DELETE | `/cloud/users/me` | Soft-deletes account (optional password confirmation) |
+| GET | `/cloud/users/me` | Returns profile including username |
+| PATCH | `/cloud/users/me` | Updates full name and/or username (uniqueness checked) |
 
 ## New screens added
 

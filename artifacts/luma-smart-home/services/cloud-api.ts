@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
 const CLOUD_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/cloud`
@@ -203,7 +204,7 @@ export const CloudAPI = {
         ...(isEmail ? { email: identifier } : { username: identifier }),
         password,
         deviceName: "LUMA Mobile App",
-        platform: "mobile",
+        platform: Platform.OS === "ios" || Platform.OS === "android" || Platform.OS === "web" ? Platform.OS : "other",
       }),
     });
   },
@@ -223,7 +224,7 @@ export const CloudAPI = {
         fullName,
         username,
         deviceName: "LUMA Mobile App",
-        platform: "mobile",
+        platform: Platform.OS === "ios" || Platform.OS === "android" || Platform.OS === "web" ? Platform.OS : "other",
       }),
     });
   },

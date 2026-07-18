@@ -16,5 +16,6 @@ const (
 	ErrRateLimited        = "RATE_LIMITED"
 	ErrInternal           = "INTERNAL_ERROR"
 	ErrEmailInUse         = "EMAIL_IN_USE"
+	ErrUsernameInUse      = "USERNAME_IN_USE"
 	ErrDeviceExists       = "DEVICE_ALREADY_REGISTERED"
 )

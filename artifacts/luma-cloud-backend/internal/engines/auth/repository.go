@@ -29,6 +29,21 @@ func (r *Repository) FindUserByEmail(email string) (*models.User, error) {
 	return &u, nil
 }
 
+func (r *Repository) FindUserByUsername(username string) (*models.User, error) {
+	var u models.User
+	err := r.db.Where("username = ?", username).First(&u).Error
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *Repository) UsernameExists(username string) (bool, error) {
+	var count int64
+	err := r.db.Model(&models.User{}).Where("username = ?", username).Count(&count).Error
+	return count > 0, err
+}
+
 func (r *Repository) FindUserByID(id string) (*models.User, error) {
 	var u models.User
 	err := r.db.Where("id = ?", id).First(&u).Error

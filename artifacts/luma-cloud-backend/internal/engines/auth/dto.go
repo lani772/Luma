@@ -4,6 +4,7 @@ import "time"
 
 type RegisterRequest struct {
 	Email      string `json:"email" binding:"required,email"`
+	Username   string `json:"username" binding:"required,min=3,max=20,username"`
 	Password   string `json:"password" binding:"required,min=8"`
 	FullName   string `json:"fullName" binding:"required"`
 	DeviceName string `json:"deviceName" binding:"required"`
@@ -11,7 +12,8 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Email      string `json:"email" binding:"required,email"`
+	Email      string `json:"email" binding:"omitempty,email"`
+	Username   string `json:"username" binding:"omitempty,min=3,max=20,username"`
 	Password   string `json:"password" binding:"required"`
 	DeviceName string `json:"deviceName" binding:"required"`
 	Platform   string `json:"platform" binding:"required,oneof=ios android web other"`
@@ -49,13 +51,14 @@ type AuthResponse struct {
 }
 
 type UserDTO struct {
-	ID              string     `json:"id"`
-	Email           string     `json:"email"`
-	FullName        string     `json:"fullName"`
-	Role            string     `json:"role"`
-	EmailVerified   bool       `json:"emailVerified"`
-	SubscriptionTier string    `json:"subscriptionTier"`
-	CreatedAt       time.Time  `json:"createdAt"`
+	ID               string     `json:"id"`
+	Email            string     `json:"email"`
+	Username         string     `json:"username"`
+	FullName         string     `json:"fullName"`
+	Role             string     `json:"role"`
+	EmailVerified    bool       `json:"emailVerified"`
+	SubscriptionTier string     `json:"subscriptionTier"`
+	CreatedAt        time.Time  `json:"createdAt"`
 }
 
 type SessionDTO struct {

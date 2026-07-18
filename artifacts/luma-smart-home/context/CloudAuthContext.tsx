@@ -133,14 +133,15 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
     username: string,
   ) => {
     const auth = await CloudAPI.register(email, password, fullName, username);
-    // Persist username locally (backend may not echo it back yet)
+    // Prefer the backend username when available; fall back to the local one.
+    const effectiveUsername = auth.user.username || username;
     await Promise.all([
       CloudAPI.storeAuth(auth),
-      CloudAPI.storeUsername(username),
+      CloudAPI.storeUsername(effectiveUsername),
     ]);
-    const userWithUsername = { ...auth.user, username };
+    const userWithUsername = { ...auth.user, username: effectiveUsername };
     await _applyUser(userWithUsername);
-    setUsername(username);
+    setUsername(effectiveUsername);
     // New user — sync immediately so we know they have no devices
     await CloudAPI.syncAllData()
       .then(data => {

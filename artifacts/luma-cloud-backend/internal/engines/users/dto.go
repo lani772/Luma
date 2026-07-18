@@ -9,10 +9,15 @@ import "time"
 
 type UpdateProfileRequest struct {
 	FullName *string `json:"fullName,omitempty"`
+	Username *string `json:"username,omitempty"`
 }
 
 type UpdatePreferencesRequest struct {
 	Preferences map[string]any `json:"preferences" binding:"required"`
+}
+
+type DeleteAccountRequest struct {
+	Password string `json:"password,omitempty"`
 }
 
 type PhoneDTO struct {
@@ -26,6 +31,7 @@ type PhoneDTO struct {
 type AccountDTO struct {
 	ID               string         `json:"id"`
 	Email            string         `json:"email"`
+	Username         string         `json:"username"`
 	FullName         string         `json:"fullName"`
 	Role             string         `json:"role"`
 	SubscriptionTier string         `json:"subscriptionTier"`

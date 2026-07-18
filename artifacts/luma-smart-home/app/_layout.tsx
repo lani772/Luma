@@ -3,12 +3,12 @@ import {
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
-  useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router, Stack, useSegments } from "expo-router";
+import * as Font from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StatusBar, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -149,13 +149,43 @@ function RootLayoutNav() {
   );
 }
 
+const FONT_MAP = {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+};
+
+async function loadFontsSafe(): Promise<boolean> {
+  try {
+    await Promise.race([
+      Font.loadAsync(FONT_MAP),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error("font load timeout")), 4000),
+      ),
+    ]);
+    return true;
+  } catch (e) {
+    console.warn("[fonts] failed to load Inter, falling back to system fonts", e);
+    return false;
+  }
+}
+
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [fontError, setFontError] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    loadFontsSafe().then((ok) => {
+      if (!mounted) return;
+      setFontsLoaded(ok);
+      if (!ok) setFontError(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

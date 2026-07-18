@@ -50,6 +50,10 @@ func (h *Handler) Register(c *gin.Context) {
 			httputil.Fail(c, http.StatusConflict, httputil.ErrEmailInUse, "an account with this email already exists", nil)
 			return
 		}
+		if errors.Is(err, ErrUsernameAlreadyRegistered) {
+			httputil.Fail(c, http.StatusConflict, httputil.ErrUsernameInUse, "that username is already taken", nil)
+			return
+		}
 		httputil.Fail(c, http.StatusInternalServerError, httputil.ErrInternal, "failed to register", nil)
 		return
 	}
@@ -60,6 +64,10 @@ func (h *Handler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httputil.Fail(c, http.StatusBadRequest, httputil.ErrValidation, err.Error(), nil)
+		return
+	}
+	if req.Email == "" && req.Username == "" {
+		httputil.Fail(c, http.StatusBadRequest, httputil.ErrValidation, "email or username is required", nil)
 		return
 	}
 	resp, err := h.svc.Login(req, c.ClientIP())

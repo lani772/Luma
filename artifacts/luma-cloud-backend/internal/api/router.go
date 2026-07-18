@@ -8,9 +8,12 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
 	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
@@ -57,6 +60,18 @@ type Config struct {
 
 func NewRouter(cfg Config) *gin.Engine {
 	r := gin.New()
+
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		_ = v.RegisterValidation("username", func(fl validator.FieldLevel) bool {
+			val := fl.Field().String()
+			if val == "" {
+				return true
+			}
+			matched, _ := regexp.MatchString("^[a-zA-Z0-9_]{3,20}$", val)
+			return matched
+		})
+	}
+
 	r.Use(middleware.Recovery(cfg.Logger))
 	r.Use(middleware.RequestID())
 	r.Use(middleware.StructuredLogging(cfg.Logger))

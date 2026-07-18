@@ -21,6 +21,7 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) RegisterRoutes(r gin.IRoutes) {
 	r.GET("/me", h.GetAccount)
 	r.PATCH("/me", h.UpdateProfile)
+	r.DELETE("/me", h.DeleteAccount)
 	r.PATCH("/me/preferences", h.UpdatePreferences)
 	r.GET("/me/phones", h.ListPhones)
 	r.DELETE("/me/phones/:phoneId", h.RemovePhone)
@@ -61,10 +62,39 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	}
 	account, err := h.svc.UpdateProfile(id, req)
 	if err != nil {
+		if errors.Is(err, ErrUsernameTaken) {
+			httputil.Fail(c, http.StatusConflict, httputil.ErrUsernameInUse, "that username is already taken", nil)
+			return
+		}
+		if errors.Is(err, ErrInvalidUsername) {
+			httputil.Fail(c, http.StatusBadRequest, httputil.ErrValidation, err.Error(), nil)
+			return
+		}
 		httputil.Fail(c, http.StatusInternalServerError, httputil.ErrInternal, "failed to update profile", nil)
 		return
 	}
 	httputil.OK(c, http.StatusOK, account)
+}
+
+func (h *Handler) DeleteAccount(c *gin.Context) {
+	id, ok := userID(c)
+	if !ok {
+		return
+	}
+	var req DeleteAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Fail(c, http.StatusBadRequest, httputil.ErrValidation, err.Error(), nil)
+		return
+	}
+	if err := h.svc.DeleteAccount(id, req.Password); err != nil {
+		if errors.Is(err, ErrWrongPassword) {
+			httputil.Fail(c, http.StatusUnauthorized, httputil.ErrInvalidCredentials, "incorrect password", nil)
+			return
+		}
+		httputil.Fail(c, http.StatusInternalServerError, httputil.ErrInternal, "failed to delete account", nil)
+		return
+	}
+	httputil.OK(c, http.StatusOK, gin.H{"deleted": true})
 }
 
 func (h *Handler) UpdatePreferences(c *gin.Context) {
