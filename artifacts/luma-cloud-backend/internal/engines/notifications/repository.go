@@ -1,66 +1,96 @@
 package notifications
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Repository struct {
-	db *gorm.DB
+	db *mongo.Database
 }
 
-func NewRepository(db *gorm.DB) *Repository {
+func NewRepository(db *mongo.Database) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) col(name string) *mongo.Collection { return r.db.Collection(name) }
+
 func (r *Repository) Create(n *models.Notification) error {
-	return r.db.Create(n).Error
+	_, err := r.col("notifications").InsertOne(context.Background(), n)
+	return err
 }
 
 func (r *Repository) FindByID(id uuid.UUID) (*models.Notification, error) {
 	var n models.Notification
-	err := r.db.Where("id = ?", id).First(&n).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("notification not found")
-		}
-		return nil, err
+	err := r.col("notifications").FindOne(context.Background(), bson.M{"_id": id}).Decode(&n)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, errors.New("notification not found")
 	}
-	return &n, nil
+	return &n, err
 }
 
 func (r *Repository) ListForUser(userID uuid.UUID, page, perPage int) ([]models.Notification, int64, error) {
-	var total int64
-	if err := r.db.Model(&models.Notification{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
+	ctx := context.Background()
+	filter := bson.M{"user_id": userID}
+
+	total, err := r.col("notifications").CountDocuments(ctx, filter)
+	if err != nil {
 		return nil, 0, err
 	}
 
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: -1}}).
+		SetSkip(int64((page - 1) * perPage)).
+		SetLimit(int64(perPage))
+
+	cursor, err := r.col("notifications").Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, err
+	}
 	var list []models.Notification
-	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&list).Error
-	return list, total, err
+	return list, total, cursor.All(ctx, &list)
 }
 
 func (r *Repository) MarkRead(userID uuid.UUID, ids []uuid.UUID) error {
-	return r.db.Model(&models.Notification{}).
-		Where("user_id = ? AND id IN ?", userID, ids).
-		Update("read_at", time.Now()).Error
+	_, err := r.col("notifications").UpdateMany(context.Background(),
+		bson.M{"user_id": userID, "_id": bson.M{"$in": ids}},
+		bson.M{"$set": bson.M{"read_at": time.Now()}},
+	)
+	return err
 }
 
 func (r *Repository) Enqueue(item *models.NotificationQueueItem) error {
-	return r.db.Create(item).Error
+	_, err := r.col("notification_queue").InsertOne(context.Background(), item)
+	return err
 }
 
 func (r *Repository) FindPendingQueueItems() ([]models.NotificationQueueItem, error) {
+	ctx := context.Background()
+	cursor, err := r.col("notification_queue").Find(ctx, bson.M{
+		"status":          "pending",
+		"next_attempt_at": bson.M{"$lte": time.Now()},
+	})
+	if err != nil {
+		return nil, err
+	}
 	var list []models.NotificationQueueItem
-	err := r.db.Where("status = ? AND next_attempt_at <= ?", "pending", time.Now()).Find(&list).Error
-	return list, err
+	return list, cursor.All(ctx, &list)
 }
 
 func (r *Repository) SaveQueueItem(item *models.NotificationQueueItem) error {
 	item.UpdatedAt = time.Now()
-	return r.db.Save(item).Error
+	opts := options.Replace().SetUpsert(true)
+	_, err := r.col("notification_queue").ReplaceOne(context.Background(),
+		bson.M{"_id": item.ID},
+		item,
+		opts,
+	)
+	return err
 }

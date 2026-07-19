@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 modules = ["nodejs-20", "web", "python-3.12", "go-1.21", "swift-5.8", "postgresql-16"]
+=======
+modules = ["nodejs-20", "web", "go-1.25", "bash", "postgresql-16"]
+>>>>>>> 580e2f0baabd19caafabcb767c2792dec2ccba6f
 
 [deployment]
 router = "application"

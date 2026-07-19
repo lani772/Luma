@@ -1,43 +1,56 @@
 package mqtt
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type Repository struct {
-	db *gorm.DB
+	db *mongo.Database
 }
 
-func NewRepository(db *gorm.DB) *Repository {
+func NewRepository(db *mongo.Database) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) col() *mongo.Collection { return r.db.Collection("mqtt_device_identities") }
+
 func (r *Repository) Upsert(identity *models.MQTTDeviceIdentity) error {
-	// A device gets at most one active identity: revoke any prior one before
-	// issuing a new one, so rotated credentials can't both be valid at once.
-	if err := r.db.Model(&models.MQTTDeviceIdentity{}).
-		Where("device_id = ? AND revoked_at IS NULL", identity.DeviceID).
-		Update("revoked_at", time.Now()).Error; err != nil {
+	ctx := context.Background()
+	// Revoke any prior active identity before issuing a new one so rotated
+	// credentials can't both be valid at once.
+	_, err := r.col().UpdateMany(ctx,
+		bson.M{"device_id": identity.DeviceID, "revoked_at": nil},
+		bson.M{"$set": bson.M{"revoked_at": time.Now()}},
+	)
+	if err != nil {
 		return err
 	}
-	return r.db.Create(identity).Error
+	_, err = r.col().InsertOne(ctx, identity)
+	return err
 }
 
 func (r *Repository) FindActiveByDevice(deviceID uuid.UUID) (*models.MQTTDeviceIdentity, error) {
 	var identity models.MQTTDeviceIdentity
-	err := r.db.Where("device_id = ? AND revoked_at IS NULL", deviceID).First(&identity).Error
-	if err != nil {
+	err := r.col().FindOne(context.Background(),
+		bson.M{"device_id": deviceID, "revoked_at": nil},
+	).Decode(&identity)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &identity, nil
+	return &identity, err
 }
 
 func (r *Repository) Revoke(deviceID uuid.UUID) error {
-	return r.db.Model(&models.MQTTDeviceIdentity{}).
-		Where("device_id = ? AND revoked_at IS NULL", deviceID).
-		Update("revoked_at", time.Now()).Error
+	_, err := r.col().UpdateMany(context.Background(),
+		bson.M{"device_id": deviceID, "revoked_at": nil},
+		bson.M{"$set": bson.M{"revoked_at": time.Now()}},
+	)
+	return err
 }

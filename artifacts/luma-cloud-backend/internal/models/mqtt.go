@@ -10,14 +10,12 @@ import (
 // device so it can authenticate to whichever broker is currently deployed.
 // The backend never hands out its own broker admin credentials.
 type MQTTDeviceIdentity struct {
-	ID             uuid.UUID  `gorm:"column:id;primaryKey"`
-	DeviceID       uuid.UUID  `gorm:"column:device_id"`
-	MQTTClientID   string     `gorm:"column:mqtt_client_id"`
-	MQTTUsername   string     `gorm:"column:mqtt_username"`
-	CredentialHash string     `gorm:"column:credential_hash"`
-	IssuedAt       time.Time  `gorm:"column:issued_at"`
-	ExpiresAt      time.Time  `gorm:"column:expires_at"`
-	RevokedAt      *time.Time `gorm:"column:revoked_at"`
+	ID             uuid.UUID  `bson:"_id"`
+	DeviceID       uuid.UUID  `bson:"device_id"`
+	MQTTClientID   string     `bson:"mqtt_client_id"`
+	MQTTUsername   string     `bson:"mqtt_username"`
+	CredentialHash string     `bson:"credential_hash"`
+	IssuedAt       time.Time  `bson:"issued_at"`
+	ExpiresAt      time.Time  `bson:"expires_at"`
+	RevokedAt      *time.Time `bson:"revoked_at,omitempty"`
 }
-
-func (MQTTDeviceIdentity) TableName() string { return "mqtt_device_identities" }

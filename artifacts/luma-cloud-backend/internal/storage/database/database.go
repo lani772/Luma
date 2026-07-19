@@ -1,49 +1,36 @@
-// Package database wires the Postgres connection used by every engine's
-// repository layer. Schema is owned by migrations/*.sql (see Migrate below),
-// never by GORM AutoMigrate.
+// Package database wires the MongoDB Atlas connection used by every engine's
+// repository layer. Schema constraints are enforced via EnsureIndexes (see
+// indexes.go); there are no SQL migrations in a MongoDB-backed service.
 package database
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"time"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-// Connect opens a GORM/Postgres connection pool. isProd trims log verbosity
-// and query-log noise in production.
-func Connect(databaseURL string, isProd bool) (*gorm.DB, error) {
-	logLevel := gormlogger.Warn
-	if !isProd {
-		logLevel = gormlogger.Error // migrations/tests print enough SQL already; avoid double noise
-	}
+// DBName is the MongoDB database name for all LUMA collections.
+const DBName = "luma"
 
-	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{
-		Logger:                                   gormlogger.Default.LogMode(logLevel),
-		DisableForeignKeyConstraintWhenMigrating: true,
-	})
+// Connect opens a MongoDB client, pings the cluster, and returns the
+// application database. mongoURI should be the full Atlas connection string
+// (mongodb+srv://...) stored in the MONGODB_URI secret.
+func Connect(mongoURI string) (*mongo.Database, error) {
+	clientOpts := options.Client().ApplyURI(mongoURI)
+	client, err := mongo.Connect(clientOpts)
 	if err != nil {
 		return nil, fmt.Errorf("database: connect: %w", err)
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("database: get sql.DB: %w", err)
-	}
-	configurePool(sqlDB)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-	if err := sqlDB.Ping(); err != nil {
+	if err := client.Ping(ctx, nil); err != nil {
 		return nil, fmt.Errorf("database: ping: %w", err)
 	}
 
-	return db, nil
-}
-
-func configurePool(sqlDB *sql.DB) {
-	sqlDB.SetMaxOpenConns(20)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(30 * time.Minute)
+	return client.Database(DBName), nil
 }

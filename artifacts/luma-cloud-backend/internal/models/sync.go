@@ -7,39 +7,33 @@ import (
 )
 
 type SyncState struct {
-	ID                uuid.UUID `gorm:"column:id;primaryKey"`
-	UserID            uuid.UUID `gorm:"column:user_id"`
-	PhoneID           uuid.UUID `gorm:"column:phone_id"`
-	ResourceType      string    `gorm:"column:resource_type"`
-	LastSyncedVersion int       `gorm:"column:last_synced_version"`
-	LastSyncedAt      time.Time `gorm:"column:last_synced_at"`
+	ID                uuid.UUID `bson:"_id"`
+	UserID            uuid.UUID `bson:"user_id"`
+	PhoneID           uuid.UUID `bson:"phone_id"`
+	ResourceType      string    `bson:"resource_type"`
+	LastSyncedVersion int       `bson:"last_synced_version"`
+	LastSyncedAt      time.Time `bson:"last_synced_at"`
 }
-
-func (SyncState) TableName() string { return "sync_states" }
 
 type SyncHistory struct {
-	ID               uuid.UUID `gorm:"column:id;primaryKey"`
-	UserID           uuid.UUID `gorm:"column:user_id"`
-	ResourceType     string    `gorm:"column:resource_type"`
-	ResourceID       string    `gorm:"column:resource_id"`
-	Version          int       `gorm:"column:version"`
-	Action           string    `gorm:"column:action"`
-	ConflictResolved bool      `gorm:"column:conflict_resolved"`
-	CreatedAt        time.Time `gorm:"column:created_at"`
+	ID               uuid.UUID `bson:"_id"`
+	UserID           uuid.UUID `bson:"user_id"`
+	ResourceType     string    `bson:"resource_type"`
+	ResourceID       string    `bson:"resource_id"`
+	Version          int       `bson:"version"`
+	Action           string    `bson:"action"`
+	ConflictResolved bool      `bson:"conflict_resolved"`
+	CreatedAt        time.Time `bson:"created_at"`
 }
-
-func (SyncHistory) TableName() string { return "sync_history" }
 
 type CloudSyncRecord struct {
-	ID           uuid.UUID `gorm:"column:id;primaryKey"`
-	UserID       uuid.UUID `gorm:"column:user_id"`
-	ResourceID   string    `gorm:"column:resource_id"`
-	ResourceType string    `gorm:"column:resource_type"`
-	Data         JSONMap   `gorm:"column:data"`
-	Version      int       `gorm:"column:version"`
-	Deleted      bool      `gorm:"column:deleted"`
-	CreatedAt    time.Time `gorm:"column:created_at"`
-	UpdatedAt    time.Time `gorm:"column:updated_at"`
+	ID           uuid.UUID `bson:"_id"`
+	UserID       uuid.UUID `bson:"user_id"`
+	ResourceID   string    `bson:"resource_id"`
+	ResourceType string    `bson:"resource_type"`
+	Data         JSONMap   `bson:"data"`
+	Version      int       `bson:"version"`
+	Deleted      bool      `bson:"deleted"`
+	CreatedAt    time.Time `bson:"created_at"`
+	UpdatedAt    time.Time `bson:"updated_at"`
 }
-
-func (CloudSyncRecord) TableName() string { return "cloud_sync_records" }

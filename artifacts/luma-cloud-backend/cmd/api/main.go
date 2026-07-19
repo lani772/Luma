@@ -1,7 +1,7 @@
 // Command api is the entrypoint for the LUMA cloud backend: the API Gateway
 // process that hosts the Phase 1 engines (Auth, User, Device Registration,
-// MQTT Broker Adapter) behind one Gin server. It owns all dependency
-// wiring — every engine below is constructed here and nowhere else.
+// MQTT Broker Adapter, Firmware, Deployment, Notifications, Sync, Backup)
+// behind one Gin server, backed by MongoDB Atlas.
 package main
 
 import (
@@ -18,13 +18,13 @@ import (
 	"github.com/luma-smart-home/cloud-backend/internal/api"
 	"github.com/luma-smart-home/cloud-backend/internal/config"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
-	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
+	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
 	deploymentengine "github.com/luma-smart-home/cloud-backend/internal/engines/deployment"
+	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
 	firmwareengine "github.com/luma-smart-home/cloud-backend/internal/engines/firmware"
+	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	notificationengine "github.com/luma-smart-home/cloud-backend/internal/engines/notifications"
 	syncengine "github.com/luma-smart-home/cloud-backend/internal/engines/sync"
-	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
-	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	usersengine "github.com/luma-smart-home/cloud-backend/internal/engines/users"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
 	"github.com/luma-smart-home/cloud-backend/internal/storage"
@@ -32,7 +32,9 @@ import (
 	"github.com/luma-smart-home/cloud-backend/internal/storage/database"
 	"github.com/luma-smart-home/cloud-backend/internal/worker"
 	"github.com/luma-smart-home/cloud-backend/pkg/mqttadapter"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 func main() {
@@ -43,20 +45,19 @@ func main() {
 		log.Error("config_load_failed", "error", err)
 		os.Exit(1)
 	}
-	isProd := cfg.Env == "production"
 
-	db, err := database.Connect(cfg.DatabaseURL, isProd)
+	db, err := database.Connect(cfg.MongoURI)
 	if err != nil {
 		log.Error("database_connect_failed", "error", err)
 		os.Exit(1)
 	}
 	log.Info("database_connected")
 
-	if err := database.Migrate(cfg.DatabaseURL, "migrations"); err != nil {
-		log.Error("database_migrate_failed", "error", err)
+	if err := database.EnsureIndexes(db); err != nil {
+		log.Error("database_indexes_failed", "error", err)
 		os.Exit(1)
 	}
-	log.Info("database_migrated")
+	log.Info("database_indexes_ensured")
 
 	appCache := selectCache(cfg.RedisURL, log)
 	defer appCache.Close()
@@ -139,24 +140,24 @@ func main() {
 	backupHandler := backupengine.NewHandler(backupSvc)
 
 	router := api.NewRouter(api.Config{
-		JWTAccessSecret: cfg.JWT.AccessSecret,
-		CORSOrigins:     cfg.CORSOrigins,
-		RateLimitRPM:    cfg.RateLimit.RequestsPerMinute,
-		RateLimitBurst:  cfg.RateLimit.Burst,
-		Cache:           appCache,
-		Blacklist:       authBlacklist,
-		AuthHandler:     authHandler,
-		UsersHandler:    usersHandler,
-		DevicesHandler:  devicesHandler,
-		DevicesService:  devicesSvc,
-		MQTTHandler:     mqttHandler,
-		FirmwareHandler: firmwareHandler,
-		DeploymentHandler: deploymentHandler,
+		JWTAccessSecret:     cfg.JWT.AccessSecret,
+		CORSOrigins:         cfg.CORSOrigins,
+		RateLimitRPM:        cfg.RateLimit.RequestsPerMinute,
+		RateLimitBurst:      cfg.RateLimit.Burst,
+		Cache:               appCache,
+		Blacklist:           authBlacklist,
+		AuthHandler:         authHandler,
+		UsersHandler:        usersHandler,
+		DevicesHandler:      devicesHandler,
+		DevicesService:      devicesSvc,
+		MQTTHandler:         mqttHandler,
+		FirmwareHandler:     firmwareHandler,
+		DeploymentHandler:   deploymentHandler,
 		NotificationHandler: notificationHandler,
-		SyncHandler:       syncHandler,
-		BackupHandler:     backupHandler,
-		StartedAt:       time.Now(),
-		Logger:          log,
+		SyncHandler:         syncHandler,
+		BackupHandler:       backupHandler,
+		StartedAt:           time.Now(),
+		Logger:              log,
 	})
 
 	bgWorker := worker.New(db, log, deploymentSvc, notificationSvc, backupSvc)
@@ -209,18 +210,25 @@ func selectCache(redisURL string, log *slog.Logger) cache.Cache {
 	return redisCache
 }
 
+// notificationsPrefsAdapter bridges the notification engine's preference
+// lookup to the MongoDB users and user_phones collections.
 type notificationsPrefsAdapter struct {
-	db *gorm.DB
+	db *mongo.Database
 }
 
 func (a *notificationsPrefsAdapter) GetNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]string, *string, *string, error) {
 	var u models.User
-	if err := a.db.Where("id = ?", userID).First(&u).Error; err != nil {
+	if err := a.db.Collection("users").FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err != nil {
 		return nil, nil, nil, err
 	}
 
 	var phone models.UserPhone
-	_ = a.db.Where("user_id = ? AND revoked_at IS NULL AND push_token IS NOT NULL", userID).Order("last_seen_at DESC").First(&phone)
+	phoneOpts := mongoopts.FindOne().SetSort(bson.D{{Key: "last_seen_at", Value: -1}})
+	_ = a.db.Collection("user_phones").FindOne(ctx, bson.M{
+		"user_id":    userID,
+		"revoked_at": nil,
+		"push_token": bson.M{"$ne": nil},
+	}, phoneOpts).Decode(&phone)
 
 	var pushToken *string
 	if phone.PushToken != nil {
@@ -228,7 +236,6 @@ func (a *notificationsPrefsAdapter) GetNotificationPreferences(ctx context.Conte
 	}
 
 	enabledTypes := []string{"firmware", "device", "automation", "schedule", "user", "system"}
-
 	return enabledTypes, pushToken, &u.Email, nil
 }
 

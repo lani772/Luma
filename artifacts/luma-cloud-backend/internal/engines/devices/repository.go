@@ -1,70 +1,113 @@
 package devices
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Repository struct {
-	db *gorm.DB
+	db *mongo.Database
 }
 
-func NewRepository(db *gorm.DB) *Repository {
+func NewRepository(db *mongo.Database) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) col(name string) *mongo.Collection { return r.db.Collection(name) }
+
 func (r *Repository) Create(d *models.Device) error {
-	return r.db.Create(d).Error
+	_, err := r.col("devices").InsertOne(context.Background(), d)
+	return err
 }
 
 func (r *Repository) FindByMAC(mac string) (*models.Device, error) {
 	var d models.Device
-	err := r.db.Where("mac_address = ?", mac).First(&d).Error
-	if err != nil {
+	err := r.col("devices").FindOne(context.Background(), bson.M{"mac_address": mac}).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &d, nil
+	return &d, err
 }
 
 func (r *Repository) FindByID(id uuid.UUID) (*models.Device, error) {
 	var d models.Device
-	err := r.db.Where("id = ?", id).First(&d).Error
-	if err != nil {
+	err := r.col("devices").FindOne(context.Background(), bson.M{"_id": id}).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, err
 	}
-	return &d, nil
+	return &d, err
 }
 
 func (r *Repository) Update(id uuid.UUID, updates map[string]any) error {
 	updates["updated_at"] = time.Now()
-	return r.db.Model(&models.Device{}).Where("id = ?", id).Updates(updates).Error
+	_, err := r.col("devices").UpdateOne(context.Background(),
+		bson.M{"_id": id},
+		bson.M{"$set": updates},
+	)
+	return err
 }
 
 func (r *Repository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.Device{}, "id = ?", id).Error
+	_, err := r.col("devices").DeleteOne(context.Background(), bson.M{"_id": id})
+	return err
 }
 
 // ListForUser returns every device the user owns or administers, paginated.
 func (r *Repository) ListForUser(userID uuid.UUID, page, perPage int) ([]models.Device, int64, error) {
-	base := r.db.Model(&models.Device{}).
-		Where("owner_id = ? OR id IN (SELECT device_id FROM device_admins WHERE user_id = ?)", userID, userID)
+	ctx := context.Background()
 
-	var total int64
-	if err := base.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+	// Fetch admin device IDs first.
+	adminCursor, err := r.col("device_admins").Find(ctx, bson.M{"user_id": userID})
+	if err != nil {
+		return nil, 0, err
+	}
+	var adminRows []models.DeviceAdmin
+	if err := adminCursor.All(ctx, &adminRows); err != nil {
+		return nil, 0, err
+	}
+	adminIDs := make([]uuid.UUID, 0, len(adminRows))
+	for _, a := range adminRows {
+		adminIDs = append(adminIDs, a.DeviceID)
+	}
+
+	filter := bson.M{"$or": bson.A{
+		bson.M{"owner_id": userID},
+		bson.M{"_id": bson.M{"$in": adminIDs}},
+	}}
+
+	total, err := r.col("devices").CountDocuments(ctx, filter)
+	if err != nil {
 		return nil, 0, err
 	}
 
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: -1}}).
+		SetSkip(int64((page - 1) * perPage)).
+		SetLimit(int64(perPage))
+
+	cursor, err := r.col("devices").Find(ctx, filter, opts)
+	if err != nil {
+		return nil, 0, err
+	}
 	var deviceList []models.Device
-	err := base.Order("created_at DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&deviceList).Error
-	return deviceList, total, err
+	return deviceList, total, cursor.All(ctx, &deviceList)
 }
 
 func (r *Repository) ListAdminIDs(deviceID uuid.UUID) ([]uuid.UUID, error) {
+	ctx := context.Background()
+	cursor, err := r.col("device_admins").Find(ctx, bson.M{"device_id": deviceID})
+	if err != nil {
+		return nil, err
+	}
 	var admins []models.DeviceAdmin
-	if err := r.db.Where("device_id = ?", deviceID).Find(&admins).Error; err != nil {
+	if err := cursor.All(ctx, &admins); err != nil {
 		return nil, err
 	}
 	ids := make([]uuid.UUID, 0, len(admins))
@@ -75,39 +118,62 @@ func (r *Repository) ListAdminIDs(deviceID uuid.UUID) ([]uuid.UUID, error) {
 }
 
 func (r *Repository) AddAdmin(a *models.DeviceAdmin) error {
-	return r.db.Create(a).Error
+	a.ID = uuid.New()
+	_, err := r.col("device_admins").InsertOne(context.Background(), a)
+	return err
 }
 
 func (r *Repository) RemoveAdmin(deviceID, userID uuid.UUID) error {
-	return r.db.Delete(&models.DeviceAdmin{}, "device_id = ? AND user_id = ?", deviceID, userID).Error
+	_, err := r.col("device_admins").DeleteOne(context.Background(),
+		bson.M{"device_id": deviceID, "user_id": userID},
+	)
+	return err
 }
 
 func (r *Repository) IsAdmin(deviceID, userID uuid.UUID) (bool, error) {
-	var count int64
-	err := r.db.Model(&models.DeviceAdmin{}).Where("device_id = ? AND user_id = ?", deviceID, userID).Count(&count).Error
+	count, err := r.col("device_admins").CountDocuments(context.Background(),
+		bson.M{"device_id": deviceID, "user_id": userID},
+	)
 	return count > 0, err
 }
 
 func (r *Repository) AppendHistory(h *models.DeviceHistory) error {
-	return r.db.Create(h).Error
+	_, err := r.col("device_history").InsertOne(context.Background(), h)
+	return err
 }
 
 func (r *Repository) ListHistory(deviceID uuid.UUID, page, perPage int) ([]models.DeviceHistory, int64, error) {
-	base := r.db.Model(&models.DeviceHistory{}).Where("device_id = ?", deviceID)
-	var total int64
-	if err := base.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+	ctx := context.Background()
+	filter := bson.M{"device_id": deviceID}
+
+	total, err := r.col("device_history").CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "created_at", Value: -1}}).
+		SetSkip(int64((page - 1) * perPage)).
+		SetLimit(int64(perPage))
+
+	cursor, err := r.col("device_history").Find(ctx, filter, opts)
+	if err != nil {
 		return nil, 0, err
 	}
 	var entries []models.DeviceHistory
-	err := base.Order("created_at DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&entries).Error
-	return entries, total, err
+	return entries, total, cursor.All(ctx, &entries)
 }
 
-// ListOwnedAndAdminSummaries backs the User Engine's "my devices" view
-// (internal/engines/users.DeviceOwnershipReader).
+// ListOwnedAndAdminSummaries backs the User Engine's "my devices" view.
 func (r *Repository) ListOwnedAndAdminSummaries(userID uuid.UUID) ([]models.Device, map[uuid.UUID]string, error) {
+	ctx := context.Background()
+
+	ownedCursor, err := r.col("devices").Find(ctx, bson.M{"owner_id": userID})
+	if err != nil {
+		return nil, nil, err
+	}
 	var owned []models.Device
-	if err := r.db.Where("owner_id = ?", userID).Find(&owned).Error; err != nil {
+	if err := ownedCursor.All(ctx, &owned); err != nil {
 		return nil, nil, err
 	}
 	roleByDevice := make(map[uuid.UUID]string, len(owned))
@@ -115,18 +181,28 @@ func (r *Repository) ListOwnedAndAdminSummaries(userID uuid.UUID) ([]models.Devi
 		roleByDevice[d.ID] = "owner"
 	}
 
-	var adminRows []models.DeviceAdmin
-	if err := r.db.Where("user_id = ?", userID).Find(&adminRows).Error; err != nil {
+	adminCursor, err := r.col("device_admins").Find(ctx, bson.M{"user_id": userID})
+	if err != nil {
 		return nil, nil, err
 	}
+	var adminRows []models.DeviceAdmin
+	if err := adminCursor.All(ctx, &adminRows); err != nil {
+		return nil, nil, err
+	}
+
 	adminDeviceIDs := make([]uuid.UUID, 0, len(adminRows))
 	for _, a := range adminRows {
 		adminDeviceIDs = append(adminDeviceIDs, a.DeviceID)
 		roleByDevice[a.DeviceID] = "admin"
 	}
+
 	var adminDevices []models.Device
 	if len(adminDeviceIDs) > 0 {
-		if err := r.db.Where("id IN ?", adminDeviceIDs).Find(&adminDevices).Error; err != nil {
+		devCursor, err := r.col("devices").Find(ctx, bson.M{"_id": bson.M{"$in": adminDeviceIDs}})
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := devCursor.All(ctx, &adminDevices); err != nil {
 			return nil, nil, err
 		}
 	}
