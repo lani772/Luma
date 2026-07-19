@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "python-3.12", "go-1.21", "swift-5.8"]
+modules = ["nodejs-20", "web", "python-3.12", "go-1.21", "swift-5.8", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -58,7 +58,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd artifacts/luma-cloud-backend && CLOUD_API_PORT=8090 go run ./cmd/api"
+args = "cd artifacts/luma-cloud-backend && GOSUMDB=sum.golang.org GONOSUMDB=golang.org/toolchain CLOUD_API_PORT=8090 go run ./cmd/api"
 waitForPort = 8090
 
 [workflows.workflow.metadata]

@@ -1,6 +1,7 @@
 import { BaseEngine } from "../base-engine";
 import type { EngineId, InternalMessage } from "../../internal-api/types";
 import { logger } from "../../lib/logger";
+import { deviceRepository } from "@workspace/db";
 
 export type DeviceType = "lamp" | "fan" | "sensor" | "switch" | "thermostat" | "camera" | "esp32";
 export type DeviceStatus = "online" | "offline" | "error";
@@ -48,7 +49,13 @@ export class DeviceEngine extends BaseEngine {
   private registry: Map<string, DeviceRecord> = new Map();
 
   protected onStart(): void {
-    this.seedRegistry();
+    // Load persisted devices from DB, seed defaults on any failure
+    this.loadFromDb().catch((err: unknown) => {
+      logger.warn({ err }, "[DeviceEngine] failed to load from DB — falling back to seed data");
+      this.seedRegistry().catch((seedErr: unknown) =>
+        logger.error({ err: seedErr }, "[DeviceEngine] seed also failed"),
+      );
+    });
   }
 
   protected onStop(): void {}
@@ -86,6 +93,36 @@ export class DeviceEngine extends BaseEngine {
     }
   }
 
+  private async loadFromDb(): Promise<void> {
+    const rows = await deviceRepository.findAll();
+    if (rows.length === 0) {
+      await this.seedRegistry();
+      return;
+    }
+    for (const row of rows) {
+      this.registry.set(row.id, this.rowToRecord(row));
+    }
+    logger.info({ count: rows.length }, "[DeviceEngine] loaded from DB");
+  }
+
+  private rowToRecord(row: Awaited<ReturnType<typeof deviceRepository.findAll>>[0]): DeviceRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      type: row.type as DeviceType,
+      mac: row.mac,
+      ip: row.ip ?? undefined,
+      room: row.room ?? undefined,
+      floor: row.floor ?? undefined,
+      firmware: row.firmware,
+      status: row.status as DeviceStatus,
+      mqttTopic: row.mqttTopic ?? undefined,
+      lastSeen: row.lastSeen instanceof Date ? row.lastSeen.toISOString() : String(row.lastSeen),
+      state: (row.state as Record<string, unknown>) ?? {},
+      config: (row.config as Record<string, unknown>) ?? {},
+    };
+  }
+
   private handleRegister(message: InternalMessage): void {
     const data = message.payload as Omit<DeviceRecord, "lastSeen" | "state" | "config">;
     const device: DeviceRecord = {
@@ -97,6 +134,10 @@ export class DeviceEngine extends BaseEngine {
     this.registry.set(device.id, device);
     logger.info({ deviceId: device.id, name: device.name }, "[DeviceEngine] registered");
 
+    deviceRepository.upsert({ ...device, lastSeen: new Date() }).catch((e: unknown) =>
+      logger.warn({ err: e }, "[DeviceEngine] persist register failed"),
+    );
+
     this.broadcast("DEVICE_REGISTERED", { device }, "normal");
   }
 
@@ -104,6 +145,9 @@ export class DeviceEngine extends BaseEngine {
     const { deviceId } = message.payload as { deviceId: string };
     const existed = this.registry.delete(deviceId);
     if (existed) {
+      deviceRepository.delete(deviceId).catch((e: unknown) =>
+        logger.warn({ err: e, deviceId }, "[DeviceEngine] persist delete failed"),
+      );
       this.broadcast("DEVICE_DEREGISTERED", { deviceId }, "normal");
       logger.info({ deviceId }, "[DeviceEngine] deregistered");
     }
@@ -125,12 +169,16 @@ export class DeviceEngine extends BaseEngine {
     this.applyCommandToState(device, command, params);
     device.lastSeen = new Date().toISOString();
 
+    deviceRepository.updateState(deviceId, device.state).catch((e: unknown) =>
+      logger.warn({ err: e, deviceId }, "[DeviceEngine] persist state failed"),
+    );
+
     this.send("mqtt_engine", "PUBLISH_DEVICE_STATE", {
       topic: device.mqttTopic ?? `luma/device/${deviceId}/state`,
       payload: { device: device.name, command, state: device.state },
     }, "high");
 
-    logger.info({ deviceId, command }, "[DeviceEngine] command dispatched to MQTT");
+    logger.info({ deviceId, command }, "[DeviceEngine] command dispatched");
   }
 
   private handleGet(message: InternalMessage): void {
@@ -162,6 +210,10 @@ export class DeviceEngine extends BaseEngine {
     device.state = { ...device.state, ...state };
     device.lastSeen = new Date().toISOString();
 
+    deviceRepository.updateState(deviceId, device.state).catch((e: unknown) =>
+      logger.warn({ err: e, deviceId }, "[DeviceEngine] persist state update failed"),
+    );
+
     this.broadcast("DEVICE_STATE_CHANGED", { deviceId, state: device.state }, "normal");
   }
 
@@ -170,6 +222,10 @@ export class DeviceEngine extends BaseEngine {
     const device = this.registry.get(deviceId);
     if (!device) return;
     device.config = { ...device.config, ...config };
+
+    deviceRepository.updateConfig(deviceId, device.config).catch((e: unknown) =>
+      logger.warn({ err: e, deviceId }, "[DeviceEngine] persist config update failed"),
+    );
   }
 
   private handleFirmwareUpdated(message: InternalMessage): void {
@@ -177,6 +233,11 @@ export class DeviceEngine extends BaseEngine {
     const device = this.registry.get(deviceId);
     if (!device) return;
     device.firmware = newVersion;
+
+    deviceRepository.updateFirmwareVersion(deviceId, newVersion).catch((e: unknown) =>
+      logger.warn({ err: e, deviceId }, "[DeviceEngine] persist firmware version failed"),
+    );
+
     this.broadcast("DEVICE_FIRMWARE_UPDATED", { deviceId, newVersion }, "normal");
     logger.info({ deviceId, newVersion }, "[DeviceEngine] firmware version recorded");
   }
@@ -203,12 +264,16 @@ export class DeviceEngine extends BaseEngine {
         break;
       case "REBOOT":
         device.status = "offline";
-        setTimeout(() => { device.status = "online"; }, 5_000);
+        deviceRepository.updateStatus(device.id, "offline").catch(() => {});
+        setTimeout(() => {
+          device.status = "online";
+          deviceRepository.updateStatus(device.id, "online").catch(() => {});
+        }, 5_000);
         break;
     }
   }
 
-  private seedRegistry(): void {
+  private async seedRegistry(): Promise<void> {
     const seed: DeviceRecord[] = [
       {
         id: "ESP32_Lamp_01",
@@ -224,8 +289,43 @@ export class DeviceEngine extends BaseEngine {
         state: { on: false, brightness: 80, rgb: "#FFFFFF" },
         config: { autoOff: true, autoOffMinutes: 60 },
       },
+      {
+        id: "ESP32_Fan_01",
+        name: "Bedroom Fan",
+        type: "fan",
+        mac: "A4:CF:12:23:34:46",
+        room: "Bedroom",
+        floor: "First",
+        firmware: "1.5.1",
+        status: "online",
+        mqttTopic: "luma/device/ESP32_Fan_01/state",
+        lastSeen: new Date().toISOString(),
+        state: { on: false, speed: 3 },
+        config: { maxSpeed: 5 },
+      },
+      {
+        id: "ESP32_Sensor_01",
+        name: "Living Room Sensor",
+        type: "sensor",
+        mac: "A4:CF:12:23:34:47",
+        room: "Living Room",
+        floor: "Ground",
+        firmware: "1.5.1",
+        status: "online",
+        mqttTopic: "luma/device/ESP32_Sensor_01/state",
+        lastSeen: new Date().toISOString(),
+        state: { temperature: 22.5, humidity: 55 },
+        config: { reportInterval: 30 },
+      },
     ];
-    seed.forEach((d) => this.registry.set(d.id, d));
+
+    for (const d of seed) {
+      this.registry.set(d.id, d);
+      await deviceRepository.upsert({ ...d, lastSeen: new Date() }).catch((e: unknown) =>
+        logger.warn({ err: e, deviceId: d.id }, "[DeviceEngine] seed persist failed"),
+      );
+    }
+    logger.info({ count: seed.length }, "[DeviceEngine] seeded registry");
   }
 
   getDevice(id: string): DeviceRecord | undefined { return this.registry.get(id); }

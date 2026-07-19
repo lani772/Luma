@@ -15,15 +15,28 @@ A smart home management platform with a React Native/Expo mobile app and an Expr
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
+- **Node.js API** (`artifacts/api-server/`): Express 5, port 8080
+- **Go Cloud Backend** (`artifacts/luma-cloud-backend/`): Gin, port 8090, path prefix `/cloud`
+- **Mobile** (`artifacts/luma-smart-home/`): React Native / Expo, port 20792
+- **DB layer** (`lib/db/`): PostgreSQL (Drizzle ORM) + optional MongoDB dual-write
+- Validation: Zod, `drizzle-zod`
+- API codegen: Orval (from OpenAPI spec in `lib/api-spec/`)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+| Concern | Path |
+|---|---|
+| Engine device registry (PG) | `lib/db/src/schema/devices.ts` → table `engine_devices` |
+| Firmware records (PG) | `lib/db/src/schema/firmware.ts` → tables `engine_firmware`, `engine_firmware_jobs` |
+| MongoDB dual-write client | `lib/db/src/mongo.ts` |
+| Dual-write repositories | `lib/db/src/repository/` |
+| Device CRUD REST API | `artifacts/api-server/src/routes/devices.ts` |
+| Firmware CRUD REST API | `artifacts/api-server/src/routes/firmware.ts` |
+| Engine message bus | `artifacts/api-server/src/engines/` |
+| Cloud backend schema | Go GORM models in `artifacts/luma-cloud-backend/internal/models/` |
+
+> **Note:** The Go cloud backend owns the `devices` table (UUID primary keys, owner foreign keys). The Node.js engine layer uses separate `engine_devices` / `engine_firmware` / `engine_firmware_jobs` tables to avoid conflicts.
 
 ## Architecture decisions
 
@@ -43,7 +56,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **Two separate device tables**: The Go cloud backend owns `devices` (UUID IDs); the Node.js engine layer owns `engine_devices` (string IDs like `ESP32_Lamp_01`). They serve different purposes — don't confuse them.
+- **MongoDB dual-write is optional**: Set `MONGODB_URL` env var to enable it. Without it, the system runs PostgreSQL-only (logged as a warning, not an error).
+- **Schema changes**: Use `psql "$DATABASE_URL"` to apply schema changes directly; `drizzle-kit push` requires a TTY and doesn't work in shell scripts.
+- **Native MQTT transport**: Cannot run in Expo Go or this container — falls back to simulated engine automatically.
 
 ## Pointers
 

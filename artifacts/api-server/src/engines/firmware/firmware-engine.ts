@@ -1,6 +1,7 @@
 import { BaseEngine } from "../base-engine";
 import type { EngineId, InternalMessage } from "../../internal-api/types";
 import { logger } from "../../lib/logger";
+import { firmwareRepository } from "@workspace/db";
 
 interface FirmwareRecord {
   deviceId: string;
@@ -102,12 +103,15 @@ export class FirmwareEngine extends BaseEngine {
   }
 
   private async handleRequestUpdate(message: InternalMessage): Promise<void> {
-    const { deviceId, targetVersion } = message.payload as {
+    const { deviceId, targetVersion, jobId: providedJobId } = message.payload as {
       deviceId: string;
       targetVersion: string;
+      jobId?: string;
     };
 
-    const jobId = `fw-job-${Date.now()}`;
+    // Use the caller-supplied jobId (e.g. from the REST API/DB) so the
+    // persisted record and the in-memory engine tracking share one identity.
+    const jobId = providedJobId ?? `fw-job-${Date.now()}`;
     const job: FirmwareUpdateJob = {
       jobId,
       deviceId,
@@ -117,6 +121,17 @@ export class FirmwareEngine extends BaseEngine {
       startedAt: new Date().toISOString(),
     };
     this.updateJobs.set(jobId, job);
+
+    // Persist to DB (best-effort; job may already exist from the API route)
+    firmwareRepository.upsertJob({
+      jobId,
+      deviceId,
+      targetVersion,
+      status: "pending",
+      progress: 0,
+    }).catch((e: unknown) =>
+      logger.warn({ err: e, jobId }, "[FirmwareEngine] persist job failed"),
+    );
 
     this.send(
       "firmware_upload_engine",
@@ -164,6 +179,11 @@ export class FirmwareEngine extends BaseEngine {
 
     job.status = success ? "done" : "failed";
     job.progress = success ? 100 : job.progress;
+
+    // Persist final status so REST polling reflects the outcome
+    firmwareRepository.updateJobStatus(jobId, job.status, job.progress).catch((e: unknown) =>
+      logger.warn({ err: e, jobId }, "[FirmwareEngine] persist job status failed"),
+    );
 
     if (success) {
       this.emit("device_engine", "FIRMWARE_UPDATED", {

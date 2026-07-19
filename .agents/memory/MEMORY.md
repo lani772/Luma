@@ -4,4 +4,5 @@
 - [LUMA comms architecture](luma-comms-architecture.md) — new discovery/Bluetooth features should wrap wifi-engine/p2p-engine, not reimplement; useEngines hook and DeviceCard.tsx are dead code.
 - [pnpm exec in workspace dev scripts](pnpm-exec-fix.md) — pnpm 10 breaks `pnpm exec <cmd>` inside `run` scripts when invoked via `--filter`; use `./node_modules/.bin/<cmd>` instead.
 - [LUMA cloud backend URL routing](luma-cloud-url.md) — Go backend on port 8090, artifact.toml routes `/cloud` path prefix to it; mobile app calls `https://${EXPO_PUBLIC_DOMAIN}/cloud/...`; SESSION_SECRET env var required.
+- [Go toolchain download in Replit](go-toolchain-download.md) — GOSUMDB=off blocks go1.25+ toolchain; fix with `GOSUMDB=sum.golang.org GONOSUMDB=golang.org/toolchain` in the workflow command.
 - [LUMA auth system](luma-auth-system.md) — auth guard pattern, username local-storage workaround, token refresh serialisation, post-login sync design, and full screen inventory.

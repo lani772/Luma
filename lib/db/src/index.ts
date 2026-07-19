@@ -1,16 +1,15 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-import * as schema from "./schema";
+// PostgreSQL (Drizzle)
+export { pool, db } from "./pg";
 
-const { Pool } = pg;
+// MongoDB (optional dual-write)
+export { connectMongo, getMongo, disconnectMongo } from "./mongo";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+// Schema bootstrapping
+export { runMigrations } from "./migrations";
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
-
+// Schema types
 export * from "./schema";
+
+// Repositories (dual-write: PG primary + MongoDB mirror)
+export { deviceRepository, DeviceRepository } from "./repository/device-repository";
+export { firmwareRepository, FirmwareRepository } from "./repository/firmware-repository";
