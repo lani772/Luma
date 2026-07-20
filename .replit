@@ -56,13 +56,13 @@ outputType = "console"
 name = "Cloud Backend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/luma-cloud-backend && CLOUD_API_PORT=8090 go run ./cmd/api"
-waitForPort = 8090
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/luma-cloud-backend && GOSUMDB=sum.golang.org GONOSUMDB=golang.org/toolchain CLOUD_API_PORT=8090 go run ./cmd/api"
+waitForPort = 8090
 
 [agent]
 stack = "BEST_EFFORT_FALLBACK"
