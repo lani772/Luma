@@ -75,7 +75,16 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("config: SESSION_SECRET is required (used to derive JWT signing keys)")
 	}
 
-	mongoURI := strings.Trim(os.Getenv("MONGODB_URI"), `"' `)
+	// Strip any accidental label prefix (e.g. "MONGODB_URI — mongodb+srv://...")
+	// by finding the first occurrence of a valid MongoDB scheme.
+	rawMongoEnv := strings.Trim(os.Getenv("MONGODB_URI"), `"' `)
+	mongoURI := rawMongoEnv
+	for _, scheme := range []string{"mongodb+srv://", "mongodb://"} {
+		if idx := strings.Index(rawMongoEnv, scheme); idx > 0 {
+			mongoURI = rawMongoEnv[idx:]
+			break
+		}
+	}
 	if mongoURI == "" {
 		return nil, fmt.Errorf("config: MONGODB_URI is required (MongoDB Atlas connection string)")
 	}
