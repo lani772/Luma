@@ -1,8 +1,7 @@
 // Package api assembles the Gin router: the API Gateway skeleton that fans
 // out to each engine. Phase 1 wires Auth, Users, Devices, and the MQTT
-// Adapter; Phase 2 engines (Firmware, Notifications, Sync, Backup,
-// Analytics, Audit, Scene/Schedule) will each get their own RegisterRoutes
-// call here once built, following the same pattern.
+// Adapter. Phase 2 adds Firmware, Notifications, Sync, Backup, and the
+// Admin/Audit engine. Analytics, Scene/Schedule will follow the same pattern.
 package api
 
 import (
@@ -15,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	adminengine "github.com/luma-smart-home/cloud-backend/internal/engines/admin"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
 	devicesengine "github.com/luma-smart-home/cloud-backend/internal/engines/devices"
 	deploymentengine "github.com/luma-smart-home/cloud-backend/internal/engines/deployment"
@@ -54,6 +54,7 @@ type Config struct {
 	NotificationHandler *notificationengine.Handler
 	SyncHandler       *syncengine.Handler
 	BackupHandler     *backupengine.Handler
+	AdminHandler      *adminengine.Handler
 	StartedAt         time.Time
 	Logger            *slog.Logger
 }
@@ -126,6 +127,15 @@ func NewRouter(cfg Config) *gin.Engine {
 	backupGroup := root.Group("/backups")
 	backupGatewayGroup := root.Group("/api/engines/backups")
 	cfg.BackupHandler.RegisterRoutes(backupGroup, backupGatewayGroup, requireAuth)
+
+	// Admin engine: owner-only user management and audit log.
+	// Both path shapes are mounted so either /cloud/admin/* or
+	// /cloud/api/engines/admin/* work identically.
+	requireOwner := middleware.RequireRole("owner")
+	adminGroup := root.Group("/admin", requireAuth, requireOwner)
+	cfg.AdminHandler.RegisterRoutes(adminGroup)
+	adminGatewayGroup := root.Group("/api/engines/admin", requireAuth, requireOwner)
+	cfg.AdminHandler.RegisterRoutes(adminGatewayGroup)
 
 	mqttGroup := root.Group("/engines/mqtt")
 	cfg.MQTTHandler.RegisterRoutes(mqttGroup)

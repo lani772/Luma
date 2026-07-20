@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/luma-smart-home/cloud-backend/internal/api"
 	"github.com/luma-smart-home/cloud-backend/internal/config"
+	adminengine "github.com/luma-smart-home/cloud-backend/internal/engines/admin"
 	authengine "github.com/luma-smart-home/cloud-backend/internal/engines/auth"
 	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
 	deploymentengine "github.com/luma-smart-home/cloud-backend/internal/engines/deployment"
@@ -125,6 +126,11 @@ func main() {
 	syncSvc := syncengine.NewService(syncRepo)
 	syncHandler := syncengine.NewHandler(syncSvc)
 
+	// --- Admin + Audit engine ---
+	adminRepo := adminengine.NewRepository(db)
+	adminSvc := adminengine.NewService(adminRepo)
+	adminHandler := adminengine.NewHandler(adminSvc)
+
 	// --- Cloud Backup engine ---
 	backupPath := os.Getenv("BACKUP_STORAGE_PATH")
 	if backupPath == "" {
@@ -156,6 +162,7 @@ func main() {
 		NotificationHandler: notificationHandler,
 		SyncHandler:         syncHandler,
 		BackupHandler:       backupHandler,
+		AdminHandler:        adminHandler,
 		StartedAt:           time.Now(),
 		Logger:              log,
 	})

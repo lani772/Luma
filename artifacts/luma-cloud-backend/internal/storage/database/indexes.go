@@ -80,6 +80,12 @@ func EnsureIndexes(db *mongo.Database) error {
 		{"email_verification_tokens", []mongo.IndexModel{
 			{Keys: bson.D{{Key: "token_hash", Value: 1}}},
 		}},
+		{"audit_logs", []mongo.IndexModel{
+			{Keys: bson.D{{Key: "actor_user_id", Value: 1}, {Key: "created_at", Value: -1}}},
+			{Keys: bson.D{{Key: "target_user_id", Value: 1}, {Key: "created_at", Value: -1}}},
+			{Keys: bson.D{{Key: "target_device_id", Value: 1}, {Key: "created_at", Value: -1}}},
+			{Keys: bson.D{{Key: "action", Value: 1}, {Key: "created_at", Value: -1}}},
+		}},
 	}
 
 	for _, spec := range specs {
