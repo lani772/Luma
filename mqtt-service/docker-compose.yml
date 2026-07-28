@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: luma-postgres
+    environment:
+      POSTGRES_USER: luma
+      POSTGRES_PASSWORD: luma_password
+      POSTGRES_DB: luma_mqtt
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luma -d luma_mqtt"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: luma-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  emqx:
+    image: emqx/emqx:5.1.1
+    container_name: luma-emqx
+    ports:
+      - "1883:1883"     # MQTT Port
+      - "8083:8083"     # MQTT WebSocket Port
+      - "8084:8084"     # MQTT WebSocket TLS Port
+      - "8883:8883"     # MQTT SSL Port
+      - "18083:18083"   # Dashboard Port
+    volumes:
+      - emqx_data:/opt/emqx/data
+      - emqx_log:/opt/emqx/log
+
+  mqtt-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: luma-mqtt-service
+    ports:
+      - "8091:8091"
+    environment:
+      - PORT=8091
+      - ENV=development
+      - JWT_SECRET=luma-gateway-very-secure-jwt-secret-key-change-me
+      - JWT_REFRESH_SECRET=luma-gateway-very-secure-refresh-token-secret-key
+      - DATABASE_URL=postgres://luma:luma_password@postgres:5432/luma_mqtt?sslmode=disable
+      - REDIS_URL=redis://redis:6379/0
+      - EMQX_BROKER_HOST=emqx
+      - EMQX_BROKER_PORT=1883
+      - EMQX_USERNAME=luma_backend
+      - EMQX_PASSWORD=luma_password
+      - EMQX_TLS_ENABLED=false
+      - SERVICE_API_KEY=test-api-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      emqx:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
+  emqx_data:
+  emqx_log:

@@ -1,0 +1,19 @@
+server:
+  port: "8091"
+  env: "development"
+  jwt_secret: "change-me-to-a-long-random-string"
+  jwt_refresh_secret: "change-me-to-a-refresh-random-string"
+  jwt_access_ttl: "15m"
+  jwt_refresh_ttl: "720h"
+database:
+  host: "localhost"
+  port: 5432
+  user: "luma"
+  password: "luma_password"
+  name: "luma_mqtt"
+  sslmode: "disable"
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0

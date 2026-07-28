@@ -1,0 +1,31 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test coverage
+*.out
+*.coverprofile
+
+# Dependency directories
+vendor/
+
+# Configuration and environment
+.env
+configs/app_local.yaml
+configs/mqtt_local.yaml
+configs/logger_local.yaml
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Docker
+.docker-build/
