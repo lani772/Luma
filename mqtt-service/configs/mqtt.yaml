@@ -1,0 +1,15 @@
+emqx:
+  api_endpoint: "https://cloud-intl.emqx.com/public_api/v1"
+  api_key: ""
+  api_secret: ""
+  broker_host: "localhost"
+  broker_port: 1883
+  username: "luma_backend"
+  password: "luma_password"
+  tls_enabled: false
+  ca_cert_path: ""
+  client_id_prefix: "luma-gateway"
+  keep_alive: 60
+  clean_session: true
+  connect_timeout: 10
+  write_timeout: 10
