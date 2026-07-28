@@ -19,6 +19,12 @@ import (
 	notificationengine "github.com/luma-smart-home/cloud-backend/internal/engines/notifications"
 	syncengine "github.com/luma-smart-home/cloud-backend/internal/engines/sync"
 	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
+	analyticsengine "github.com/luma-smart-home/cloud-backend/internal/engines/analytics"
+	auditengine "github.com/luma-smart-home/cloud-backend/internal/engines/audit"
+	scenesengine "github.com/luma-smart-home/cloud-backend/internal/engines/scenes"
+	schedulesengine "github.com/luma-smart-home/cloud-backend/internal/engines/schedules"
+	healthengine "github.com/luma-smart-home/cloud-backend/internal/engines/health"
+	remoteengine "github.com/luma-smart-home/cloud-backend/internal/engines/remote"
 	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	usersengine "github.com/luma-smart-home/cloud-backend/internal/engines/users"
 	"github.com/luma-smart-home/cloud-backend/internal/httputil"
@@ -51,6 +57,12 @@ type Config struct {
 	NotificationHandler *notificationengine.Handler
 	SyncHandler       *syncengine.Handler
 	BackupHandler     *backupengine.Handler
+	AnalyticsHandler  *analyticsengine.Handler
+	AuditHandler      *auditengine.Handler
+	ScenesHandler     *scenesengine.Handler
+	SchedulesHandler  *schedulesengine.Handler
+	HealthHandler     *healthengine.Handler
+	RemoteHandler     *remoteengine.Handler
 	StartedAt         time.Time
 	Logger            *slog.Logger
 }
@@ -72,6 +84,8 @@ func NewRouter(cfg Config) *gin.Engine {
 		})
 	})
 
+	root.Use(cfg.AuditHandler.Middleware())
+
 	root.Use(middleware.RateLimit(cfg.Cache, cfg.RateLimitRPM, cfg.RateLimitBurst))
 
 	requireAuth := middleware.RequireAuth(cfg.JWTAccessSecret, cfg.Blacklist)
@@ -88,6 +102,7 @@ func NewRouter(cfg Config) *gin.Engine {
 	cfg.UsersHandler.RegisterRoutes(usersGatewayGroup)
 
 	devicesGroup := root.Group("/devices", requireAuth)
+	accessMiddleware := devicesAccessMiddleware(cfg.DevicesService)
 	cfg.DevicesHandler.RegisterRoutes(devicesGroup)
 	devicesGatewayGroup := root.Group("/api/engines/devices", requireAuth)
 	cfg.DevicesHandler.RegisterRoutes(devicesGatewayGroup)
@@ -112,9 +127,28 @@ func NewRouter(cfg Config) *gin.Engine {
 	backupGatewayGroup := root.Group("/api/engines/backups")
 	cfg.BackupHandler.RegisterRoutes(backupGroup, backupGatewayGroup, requireAuth)
 
+	analyticsGroup := root.Group("/analytics")
+	analyticsGatewayGroup := root.Group("/api/engines/analytics")
+	cfg.AnalyticsHandler.RegisterRoutes(analyticsGroup, analyticsGatewayGroup, requireAuth)
+
+	auditGroup := root.Group("/audit")
+	auditGatewayGroup := root.Group("/api/engines/audit")
+	cfg.AuditHandler.RegisterRoutes(auditGroup, auditGatewayGroup, requireAuth)
+
+	scenesGroup := root.Group("/scenes")
+	scenesGatewayGroup := root.Group("/api/engines/scenes")
+	cfg.ScenesHandler.RegisterRoutes(scenesGroup, scenesGatewayGroup, requireAuth)
+
+	schedulesGroup := root.Group("/schedules")
+	schedulesGatewayGroup := root.Group("/api/engines/schedules")
+	cfg.SchedulesHandler.RegisterRoutes(schedulesGroup, schedulesGatewayGroup, requireAuth)
+
+	cfg.HealthHandler.RegisterRoutes(devicesGroup, devicesGatewayGroup, requireAuth, accessMiddleware)
+
+	cfg.RemoteHandler.RegisterRoutes(devicesGroup, devicesGatewayGroup, requireAuth, accessMiddleware)
+
 	mqttGroup := root.Group("/engines/mqtt")
 	cfg.MQTTHandler.RegisterRoutes(mqttGroup)
-	accessMiddleware := devicesAccessMiddleware(cfg.DevicesService)
 	cfg.MQTTHandler.RegisterDeviceRoutes(devicesGroup, accessMiddleware)
 	cfg.MQTTHandler.RegisterDeviceRoutes(devicesGatewayGroup, accessMiddleware)
 

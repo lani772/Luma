@@ -1,7 +1,5 @@
 // Command api is the entrypoint for the LUMA cloud backend: the API Gateway
-// process that hosts the Phase 1 engines (Auth, User, Device Registration,
-// MQTT Broker Adapter) behind one Gin server. It owns all dependency
-// wiring — every engine below is constructed here and nowhere else.
+// process that hosts the Phase 1 & 2 engines behind one Gin server.
 package main
 
 import (
@@ -24,6 +22,12 @@ import (
 	notificationengine "github.com/luma-smart-home/cloud-backend/internal/engines/notifications"
 	syncengine "github.com/luma-smart-home/cloud-backend/internal/engines/sync"
 	backupengine "github.com/luma-smart-home/cloud-backend/internal/engines/backup"
+	analyticsengine "github.com/luma-smart-home/cloud-backend/internal/engines/analytics"
+	auditengine "github.com/luma-smart-home/cloud-backend/internal/engines/audit"
+	scenesengine "github.com/luma-smart-home/cloud-backend/internal/engines/scenes"
+	schedulesengine "github.com/luma-smart-home/cloud-backend/internal/engines/schedules"
+	healthengine "github.com/luma-smart-home/cloud-backend/internal/engines/health"
+	remoteengine "github.com/luma-smart-home/cloud-backend/internal/engines/remote"
 	mqttengine "github.com/luma-smart-home/cloud-backend/internal/engines/mqtt"
 	usersengine "github.com/luma-smart-home/cloud-backend/internal/engines/users"
 	"github.com/luma-smart-home/cloud-backend/internal/models"
@@ -63,9 +67,6 @@ func main() {
 
 	mqttAdapter := selectMQTTAdapter(cfg.MQTT, log)
 	if err := mqttAdapter.Connect(context.Background()); err != nil {
-		// Non-fatal: the mobile app's local Core Engine keeps working over
-		// the LAN even if the cloud can't reach the broker; only cloud-relay
-		// features degrade. Logged loudly, never silently swallowed.
 		log.Warn("mqtt_broker_connect_failed_continuing_degraded", "error", err)
 	}
 	defer mqttAdapter.Disconnect(5 * time.Second)
@@ -138,6 +139,36 @@ func main() {
 	backupSvc := backupengine.NewService(backupRepo, backupStore)
 	backupHandler := backupengine.NewHandler(backupSvc)
 
+	// --- Analytics engine ---
+	analyticsRepo := analyticsengine.NewRepository(db)
+	analyticsSvc := analyticsengine.NewService(analyticsRepo)
+	analyticsHandler := analyticsengine.NewHandler(analyticsSvc)
+
+	// --- Audit Log engine ---
+	auditRepo := auditengine.NewRepository(db)
+	auditSvc := auditengine.NewService(auditRepo)
+	auditHandler := auditengine.NewHandler(auditSvc)
+
+	// --- Scene engine ---
+	scenesRepo := scenesengine.NewRepository(db)
+	scenesSvc := scenesengine.NewService(scenesRepo)
+	scenesHandler := scenesengine.NewHandler(scenesSvc)
+
+	// --- Schedule engine ---
+	schedulesRepo := schedulesengine.NewRepository(db)
+	schedulesSvc := schedulesengine.NewService(schedulesRepo)
+	schedulesHandler := schedulesengine.NewHandler(schedulesSvc)
+
+	// --- Device Health engine ---
+	healthRepo := healthengine.NewRepository(db)
+	healthNotifAdapter := &healthNotificationAdapter{svc: notificationSvc}
+	healthSvc := healthengine.NewService(healthRepo, healthNotifAdapter, 5*time.Minute)
+	healthHandler := healthengine.NewHandler(healthSvc)
+
+	// --- Remote Access engine ---
+	remoteSvc := remoteengine.NewService(mqttAdapter)
+	remoteHandler := remoteengine.NewHandler(remoteSvc)
+
 	router := api.NewRouter(api.Config{
 		JWTAccessSecret: cfg.JWT.AccessSecret,
 		CORSOrigins:     cfg.CORSOrigins,
@@ -155,13 +186,23 @@ func main() {
 		NotificationHandler: notificationHandler,
 		SyncHandler:       syncHandler,
 		BackupHandler:     backupHandler,
+		AnalyticsHandler:  analyticsHandler,
+		AuditHandler:      auditHandler,
+		ScenesHandler:     scenesHandler,
+		SchedulesHandler:  schedulesHandler,
+		HealthHandler:     healthHandler,
+		RemoteHandler:     remoteHandler,
 		StartedAt:       time.Now(),
 		Logger:          log,
 	})
 
-	bgWorker := worker.New(db, log, deploymentSvc, notificationSvc, backupSvc)
+	bgWorker := worker.New(db, log, deploymentSvc, notificationSvc, backupSvc, analyticsSvc, healthSvc)
 	workerCtx, cancelWorker := context.WithCancel(context.Background())
 	go bgWorker.Run(workerCtx)
+
+	// --- Start Real-time MQTT API Listener ---
+	mqttListener := mqttengine.NewListener(db, mqttAdapter, healthSvc, log)
+	go mqttListener.Start(context.Background())
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -192,9 +233,6 @@ func main() {
 	log.Info("shutdown_complete")
 }
 
-// selectCache picks Redis when REDIS_URL is configured and reachable,
-// falling back to the in-memory implementation with a loud warning
-// otherwise — never a silent degrade.
 func selectCache(redisURL string, log *slog.Logger) cache.Cache {
 	if redisURL == "" {
 		log.Warn("cache_backend_memory_fallback", "reason", "REDIS_URL not set; rate limiting and session revocation will not be shared across instances")
@@ -207,6 +245,30 @@ func selectCache(redisURL string, log *slog.Logger) cache.Cache {
 	}
 	log.Info("cache_backend_redis")
 	return redisCache
+}
+
+func selectMQTTAdapter(mqttCfg config.MQTTConfig, log *slog.Logger) mqttadapter.Adapter {
+	return mqttadapter.NewPahoAdapter(mqttadapter.Config{
+		BrokerURL:      mqttCfg.BrokerURL,
+		ClientIDPrefix: mqttCfg.ClientIDPrefix,
+		Username:       mqttCfg.Username,
+		Password:       mqttCfg.Password,
+		TLSEnabled:     mqttCfg.TLSEnabled,
+	}, log)
+}
+
+type healthNotificationAdapter struct {
+	svc *notificationengine.Service
+}
+
+func (a *healthNotificationAdapter) TriggerAlert(ctx context.Context, userID uuid.UUID, title, body string) error {
+	_, err := a.svc.Create(ctx, notificationengine.CreateNotificationRequest{
+		UserID: userID.String(),
+		Type:   "system",
+		Title:  title,
+		Body:   body,
+	})
+	return err
 }
 
 type notificationsPrefsAdapter struct {
@@ -230,14 +292,4 @@ func (a *notificationsPrefsAdapter) GetNotificationPreferences(ctx context.Conte
 	enabledTypes := []string{"firmware", "device", "automation", "schedule", "user", "system"}
 
 	return enabledTypes, pushToken, &u.Email, nil
-}
-
-func selectMQTTAdapter(mqttCfg config.MQTTConfig, log *slog.Logger) mqttadapter.Adapter {
-	return mqttadapter.NewPahoAdapter(mqttadapter.Config{
-		BrokerURL:      mqttCfg.BrokerURL,
-		ClientIDPrefix: mqttCfg.ClientIDPrefix,
-		Username:       mqttCfg.Username,
-		Password:       mqttCfg.Password,
-		TLSEnabled:     mqttCfg.TLSEnabled,
-	}, log)
 }
