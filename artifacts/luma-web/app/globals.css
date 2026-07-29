@@ -1,0 +1,197 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-background: #0a0e1a;
+  --color-foreground: #f5f5f5;
+  --color-card: #131829;
+  --color-primary-blue: #2563eb;
+  --color-accent-teal: #06b6d4;
+}
+
+* {
+  @apply border-border;
+}
+
+html {
+  @apply bg-background text-foreground;
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply antialiased;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glass effect */
+.glass {
+  @apply bg-card/50 backdrop-blur-sm border border-border rounded-lg;
+  background: rgba(19, 24, 41, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+}
+
+.glass:hover {
+  @apply bg-card/70 border-border;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  @apply w-2 h-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-card/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border/80;
+}
+
+/* Selection */
+::selection {
+  @apply bg-primary-blue/30 text-foreground;
+}
+
+/* Focus styles */
+:focus-visible {
+  @apply outline-none ring-2 ring-accent-teal/50 ring-offset-2 ring-offset-background;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  @apply animation-[fadeIn_0.3s_ease-out];
+}
+
+.animate-slideInUp {
+  @apply animation-[slideInUp_0.3s_ease-out];
+}
+
+.animate-slideInDown {
+  @apply animation-[slideInDown_0.3s_ease-out];
+}
+
+/* Status indicators */
+.status-online {
+  @apply bg-on-state;
+}
+
+.status-offline {
+  @apply bg-muted;
+}
+
+.status-on {
+  @apply text-on-state;
+}
+
+.status-off {
+  @apply text-muted;
+}
+
+/* Button base styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200 ease-out;
+}
+
+.btn-primary {
+  @apply bg-primary-blue hover:bg-primary-blue-light text-white;
+}
+
+.btn-secondary {
+  @apply bg-card hover:bg-card-hover text-foreground border border-border;
+}
+
+.btn-ghost {
+  @apply hover:bg-card/30 text-foreground;
+}
+
+/* Card base styles */
+.card {
+  @apply bg-card rounded-lg border border-border;
+}
+
+.card-hover {
+  @apply transition-all duration-200 hover:border-border/80 hover:shadow-glass;
+}
+
+/* Input base styles */
+.input {
+  @apply w-full px-4 py-2 bg-card border border-border rounded-lg text-foreground placeholder-muted-light transition-colors duration-200;
+}
+
+.input:focus {
+  @apply outline-none border-accent-teal ring-2 ring-accent-teal/20;
+}
+
+.input:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply bg-primary-blue/20 text-primary-blue-light;
+}
+
+.badge-success {
+  @apply bg-on-state/20 text-on-state;
+}
+
+.badge-warning {
+  @apply bg-gold/20 text-gold;
+}
+
+.badge-danger {
+  @apply bg-red-warn/20 text-red-warn;
+}
+
+/* Text utilities */
+.text-truncate {
+  @apply truncate;
+}
+
+.line-clamp-2 {
+  @apply line-clamp-2;
+}
+
+.line-clamp-3 {
+  @apply line-clamp-3;
+}
