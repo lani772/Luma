@@ -1,0 +1,267 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: luma
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: luma-api-config
+  namespace: luma
+data:
+  APP_ENV: "production"
+  LOG_LEVEL: "info"
+  API_PORT: "8080"
+  CORS_ORIGINS: "https://luma.app,https://app.luma.app"
+  JWT_EXPIRY: "24h"
+  REFRESH_TOKEN_EXPIRY: "7d"
+  CACHE_TTL: "3600"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: luma-api-secrets
+  namespace: luma
+type: Opaque
+stringData:
+  JWT_SECRET: "your-jwt-secret-key-change-in-production"
+  MONGODB_URI: "mongodb://mongodb:27017/luma"
+  REDIS_URL: "redis://redis:6379"
+  API_KEY: "your-api-key-change-in-production"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: luma-api
+  namespace: luma
+  labels:
+    app: luma-api
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: luma-api
+  template:
+    metadata:
+      labels:
+        app: luma-api
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: luma-api
+      containers:
+      - name: luma-api
+        image: luma/luma-api:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: luma-api-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: luma-api-config
+              key: LOG_LEVEL
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: luma-api-secrets
+              key: JWT_SECRET
+        - name: MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: luma-api-secrets
+              key: MONGODB_URI
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: luma-api-secrets
+              key: REDIS_URL
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: luma-api
+  namespace: luma
+  labels:
+    app: luma-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: luma-api
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: luma-api-hpa
+  namespace: luma
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: luma-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: luma-api-pdb
+  namespace: luma
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: luma-api
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: luma-api
+  namespace: luma
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: luma-api
+  namespace: luma
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: luma-api
+  namespace: luma
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: luma-api
+subjects:
+- kind: ServiceAccount
+  name: luma-api
+  namespace: luma
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: luma-api-network-policy
+  namespace: luma
+spec:
+  podSelector:
+    matchLabels:
+      app: luma-api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 27017 # MongoDB
+    - protocol: TCP
+      port: 6379 # Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
