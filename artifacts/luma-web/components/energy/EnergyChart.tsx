@@ -28,16 +28,16 @@ export function EnergyChart({ data, type = 'bar', height = 300 }: EnergyChartPro
       {type === 'line' ? (
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-          <XAxis dataKey="name" stroke={COLORS.muted} />
-          <YAxis stroke={COLORS.muted} />
+          <XAxis dataKey="name" stroke={COLORS.textMuted} />
+          <YAxis stroke={COLORS.textMuted} />
           <Tooltip
             contentStyle={{
               backgroundColor: COLORS.card,
               border: `1px solid ${COLORS.border}`,
               borderRadius: '8px',
             }}
-            labelStyle={{ color: COLORS.foreground }}
-            formatter={(value) => `${value.toFixed(2)} kWh`}
+            labelStyle={{ color: COLORS.textPrimary }}
+            formatter={(value) => `${Number(value).toFixed(2)} kWh`}
           />
           <Line
             type="monotone"
@@ -51,16 +51,16 @@ export function EnergyChart({ data, type = 'bar', height = 300 }: EnergyChartPro
       ) : (
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke={COLORS.border} />
-          <XAxis dataKey="name" stroke={COLORS.muted} />
-          <YAxis stroke={COLORS.muted} />
+          <XAxis dataKey="name" stroke={COLORS.textMuted} />
+          <YAxis stroke={COLORS.textMuted} />
           <Tooltip
             contentStyle={{
               backgroundColor: COLORS.card,
               border: `1px solid ${COLORS.border}`,
               borderRadius: '8px',
             }}
-            labelStyle={{ color: COLORS.foreground }}
-            formatter={(value) => `${value.toFixed(2)} kWh`}
+            labelStyle={{ color: COLORS.textPrimary }}
+            formatter={(value) => `${Number(value).toFixed(2)} kWh`}
           />
           <Bar dataKey="value" fill={COLORS.accentTeal} radius={[8, 8, 0, 0]} />
         </BarChart>

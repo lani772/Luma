@@ -80,8 +80,8 @@ export default function DeviceDetailPage() {
           <div
             className="px-3 py-1 rounded-full text-sm font-medium"
             style={{
-              backgroundColor: mockDevice.online ? `${COLORS.onState}20` : `${COLORS.muted}20`,
-              color: mockDevice.online ? COLORS.onState : COLORS.muted,
+              backgroundColor: mockDevice.online ? `${COLORS.onState}20` : `${COLORS.textMuted}20`,
+              color: mockDevice.online ? COLORS.onState : COLORS.textMuted,
             }}
           >
             {mockDevice.online ? 'Online' : 'Offline'}
