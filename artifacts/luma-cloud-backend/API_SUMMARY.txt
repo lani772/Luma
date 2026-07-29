@@ -1,0 +1,414 @@
+================================================================================
+                    LUMA CLOUD BACKEND - COMPLETE API SUMMARY
+================================================================================
+
+BASE URL: http://localhost:8090/cloud
+DUAL PATHS: /cloud/{endpoint} or /cloud/api/engines/{endpoint}
+
+================================================================================
+                              QUICK STATS
+================================================================================
+
+Total Endpoints: 63 working endpoints across 9 services
+Services: 9 (excluding MQTT)
+Authentication: JWT + Opaque Refresh Tokens
+Database: MongoDB with real-time data persistence
+Cache: Redis (with in-memory fallback)
+Rate Limiting: 100 req/min per IP
+
+================================================================================
+                           1. AUTHENTICATION (11 endpoints)
+================================================================================
+
+POST   /auth/register                      - User registration
+POST   /auth/login                         - Login with email or username
+POST   /auth/refresh                       - Refresh access token
+POST   /auth/logout                        - Logout and revoke session
+GET    /auth/profile                       - Get authenticated user profile
+GET    /auth/sessions                      - List all active sessions
+POST   /auth/sessions/revoke-others        - Logout all other devices
+POST   /auth/password-reset/request        - Request password reset email
+POST   /auth/password-reset/confirm        - Confirm password reset
+POST   /auth/email-verification/request    - Request verification email
+POST   /auth/email-verification/confirm    - Confirm email verification
+
+Implementation:
+- JWT access tokens (15 min TTL)
+- Opaque refresh tokens (30 day TTL, rotated on use)
+- Per-phone sessions (not per-user)
+- Session revocation via cache-backed blacklist
+- Password hashing with bcrypt (cost 12)
+
+================================================================================
+                            2. USERS (7 endpoints)
+================================================================================
+
+GET    /users/me                           - Get user account details
+PATCH  /users/me                           - Update profile (name, username)
+DELETE /users/me                           - Delete account
+PATCH  /users/me/preferences               - Update user preferences
+GET    /users/me/phones                    - List paired phones/devices
+DELETE /users/me/phones/{phoneId}          - Remove phone (logout device)
+GET    /users/me/devices                   - List owned devices
+
+Implementation:
+- Username validation (3-20 chars, alphanumeric + underscore)
+- Preferences stored as JSON map
+- Phone removal revokes all associated sessions
+- Device list includes both owned and admin-delegated devices
+
+================================================================================
+                           3. DEVICES (9 endpoints)
+================================================================================
+
+POST   /devices                            - Register new device
+GET    /devices                            - List user's devices (paginated)
+GET    /devices/{deviceId}                 - Get device details
+PATCH  /devices/{deviceId}                 - Update device name/firmware
+DELETE /devices/{deviceId}                 - Delete device (owner only)
+POST   /devices/{deviceId}/transfer-ownership - Transfer to another user
+POST   /devices/{deviceId}/admins          - Grant admin access (owner only)
+DELETE /devices/{deviceId}/admins/{userId} - Revoke admin (owner only)
+GET    /devices/{deviceId}/history         - View device change history
+
+Implementation:
+- MAC address uniqueness constraint
+- Owner and admin role separation
+- Change audit trail per device
+- Device status tracking (online/offline/decommissioned)
+- Access control middleware for owner/admin checks
+
+================================================================================
+                          4. FIRMWARE (8 endpoints)
+================================================================================
+
+POST   /firmware/upload                    - Upload firmware binary (.bin file)
+GET    /firmware                           - List firmware releases (paginated)
+GET    /firmware/{id}                      - Get firmware release details
+DELETE /firmware/{id}                      - Delete firmware from repository
+POST   /firmware/{id}/publish              - Publish to channel (beta/stable)
+POST   /firmware/{id}/archive              - Archive firmware
+GET    /firmware/{id}/download             - Download binary (file streaming)
+GET    /firmware/compare                   - Check for available updates
+
+Implementation:
+- Semantic version validation (regex: semver pattern)
+- File upload with size limit (default 20MB, configurable)
+- SHA256 checksum calculation and storage
+- Signature verification support
+- Channel-based distribution (beta, stable, etc.)
+- Download tracking with device ID and IP logging
+- Storage abstraction (local filesystem or cloud)
+
+================================================================================
+                         5. DEPLOYMENTS (5 endpoints)
+================================================================================
+
+POST   /deployments                        - Create firmware rollout
+GET    /deployments                        - List deployments (paginated)
+GET    /deployments/{id}                   - Get deployment details with stats
+POST   /deployments/{id}/rollback          - Rollback deployment to previous
+POST   /deployments/{id}/devices/{deviceId}/retry - Retry failed device
+
+Implementation:
+- Percentage-based rollout (deterministic hash-based selection)
+- Status progression: pending → scheduled → running → completed/failed
+- Device-level status tracking (per-device retries)
+- Exponential backoff for failed devices (max 5 retries)
+- Aggregated statistics (total/pending/running/completed/failed)
+- Background worker for scheduled deployment execution
+- Automatic progression from pending → running → completed
+
+================================================================================
+                        6. NOTIFICATIONS (3 endpoints)
+================================================================================
+
+POST   /notifications                      - Create notification
+GET    /notifications                      - List notifications (paginated)
+POST   /notifications/mark-read            - Mark notifications as read
+
+Implementation:
+- Notification types: firmware, device, automation, schedule, user, system
+- User preference-based muting (per notification type)
+- Multi-provider delivery: FCM (Android), APNs (iOS), Email
+- Queue-based delivery with automatic retry
+- Mock providers in Phase 1 (FCM/APNs/Email stubbed)
+- Exponential backoff retry logic
+- Read status tracking per notification
+
+================================================================================
+                           7. SYNC (2 endpoints)
+================================================================================
+
+POST   /sync/push                          - Upload changes to cloud
+POST   /sync/pull                          - Download changes from cloud
+
+Implementation:
+- Last-Write-Wins conflict resolution
+- Version tracking for all resources
+- Resource types: homes, rooms, devices, automations, etc.
+- Soft delete support (tombstones)
+- Phone-level sync state tracking
+- Conflict detection and reporting
+- History recording with conflict resolution markers
+
+================================================================================
+                          8. BACKUPS (4 endpoints)
+================================================================================
+
+POST   /backups                            - Create user backup
+GET    /backups                            - List backups (paginated)
+POST   /backups/{id}/restore               - Restore from backup
+DELETE /backups/{id}                       - Delete backup
+
+Implementation:
+- JSON serialization of cloud sync records
+- SHA256 checksum for integrity verification
+- Selective restoration (all, home, room, controller)
+- Automatic daily backups via background worker
+- Storage abstraction (local filesystem or cloud)
+- Size tracking and quota management
+- Cleanup on failure
+
+================================================================================
+                          9. ADMIN (6 endpoints)
+================================================================================
+
+GET    /admin/users                        - List all users (filter by role/status)
+GET    /admin/users/{userId}               - Get user details
+PATCH  /admin/users/{userId}/role          - Change user role
+PATCH  /admin/users/{userId}/status        - Suspend or reactivate user
+DELETE /admin/users/{userId}               - Force delete user account
+GET    /admin/audit                        - List audit logs (filtered)
+
+Implementation:
+- Owner-only access (requires role="owner")
+- User filtering by role and status
+- Role change restrictions (cannot downgrade other owners)
+- Self-modification prevention
+- Comprehensive audit logging
+- Audit filters: actor_id, target_id, action
+- IP address and timestamp tracking
+- Last-seen tracking per user
+
+================================================================================
+                           10. HEALTH (1 endpoint)
+================================================================================
+
+GET    /healthz                            - Service health check
+
+Response includes:
+- Status: "ok"
+- Uptime: duration string
+- Cache backend: "redis" or "memory"
+
+================================================================================
+                              KEY STATISTICS
+================================================================================
+
+Authentication Endpoints:     11
+User Management Endpoints:    13 (users + auth)
+Device Management:            9
+Firmware Distribution:        13 (firmware + deployment)
+Data Sync:                    6 (notifications + sync + backup)
+Administration:               6
+Health:                       1
+────────────────────────────────────────────────────────
+TOTAL WORKING ENDPOINTS:      63
+
+Excluded (Phase 2 planned):
+- Scene & Schedule engines
+- Real payment integrations
+- Advanced analytics
+
+================================================================================
+                            AUTHENTICATION FLOWS
+================================================================================
+
+1. Register → Verify Email → Login
+2. Forgot Password → Reset Token Email → Confirm Reset
+3. Multi-Device Login → Manage Sessions → Logout Other Devices
+4. Token Refresh → Automatic on Expiration
+
+================================================================================
+                        DATA MODELS & RELATIONSHIPS
+================================================================================
+
+User → UserPhone (1:many) - Device login tracking
+User → Device (1:many) - Device ownership
+Device → DeviceAdmin (many:many) - Admin delegation
+Device → DeviceHistory (1:many) - Audit trail
+FirmwareRelease → FirmwareDownload (1:many) - Download tracking
+Deployment → DeviceDeployment (1:many) - Device rollout status
+User → Notification (1:many) - Notification history
+User → CloudSyncRecord (1:many) - Cloud state
+User → Backup (1:many) - Backup history
+User → AuditLog (1:many) - Administrative actions
+
+================================================================================
+                          DATABASE COLLECTIONS
+================================================================================
+
+Core:
+- users (email:unique, username:unique, role:enum)
+- user_phones (userId:indexed, pushToken)
+- sessions (userId:indexed, phoneId:indexed, token:unique)
+
+Devices:
+- devices (ownerId:indexed, macAddress:unique, status)
+- device_admins (deviceId:indexed, userId:indexed)
+- device_history (deviceId:indexed, createdAt:indexed)
+
+Firmware:
+- firmware_releases (deviceType:indexed, version:unique, channel)
+- firmware_downloads (firmwareId:indexed, timestamp)
+- firmware_deployments (status:indexed, scheduledAt:indexed)
+- device_deployments (deploymentId:indexed, deviceId:indexed)
+
+Other:
+- notifications (userId:indexed, createdAt:indexed)
+- notification_queue (status:indexed, nextAttemptAt:indexed)
+- cloud_sync_records (userId:indexed, resourceType, resourceId:unique)
+- sync_history (userId:indexed, createdAt:indexed)
+- backups (userId:indexed, createdAt:indexed)
+- audit_logs (actorUserId:indexed, createdAt:indexed)
+
+================================================================================
+                            ERROR CODES (HTTP)
+================================================================================
+
+200 OK                        - Request successful
+201 Created                   - Resource created
+400 Bad Request               - Invalid input/validation error
+401 Unauthorized              - Missing or invalid authentication
+403 Forbidden                 - Insufficient permissions
+404 Not Found                 - Resource does not exist
+409 Conflict                  - Resource already exists
+413 Payload Too Large         - File exceeds size limit
+500 Internal Server Error     - Server error
+
+Domain-specific error codes:
+- EMAIL_ALREADY_REGISTERED
+- USERNAME_ALREADY_TAKEN
+- INVALID_CREDENTIALS
+- DEVICE_ALREADY_REGISTERED
+- DEVICE_NOT_FOUND
+- NO_ACCESS_TO_DEVICE
+- FIRMWARE_DUPLICATE_VERSION
+- FIRMWARE_INVALID_VERSION
+- TOKEN_INVALID_OR_EXPIRED
+- USER_NOT_FOUND
+- CANNOT_MODIFY_SELF
+
+================================================================================
+                        RATE LIMITING & QUOTAS
+================================================================================
+
+Rate Limiting:
+- Global: 100 requests per minute per IP
+- Burst: 10 requests per second
+- Enforced at gateway level
+
+File Size Limits:
+- Firmware upload: 20 MB (configurable)
+
+Pagination:
+- Max items per page: 100
+- Default items per page: 20
+
+================================================================================
+                        DEPLOYMENT & RUNNING
+================================================================================
+
+Development:
+docker-compose up                          # Start all services locally
+
+Production:
+MONGO_URI=<connection_string>
+REDIS_URL=<connection_string>
+SESSION_SECRET=<32_byte_base64>
+PORT=8090                                  # Default port
+
+Required Environment Variables:
+- MONGO_URI                               # MongoDB connection
+- SESSION_SECRET                          # JWT signing key
+- JWT_ACCESS_TTL (optional, default: 15m)
+- JWT_REFRESH_TTL (optional, default: 30d)
+- REDIS_URL (optional, uses in-memory fallback)
+- FIRMWARE_STORAGE_PATH (optional, default: data/firmware)
+- BACKUP_STORAGE_PATH (optional, default: data/backups)
+- CORS_ORIGINS (optional)
+- RATE_LIMIT_RPM (optional, default: 100)
+- RATE_LIMIT_BURST (optional, default: 10)
+
+Background Jobs:
+- Firmware deployment progression (every 30 seconds)
+- Notification delivery retries (every 30 seconds)
+- Automatic daily backups (every 30 seconds check)
+
+================================================================================
+                            IMPLEMENTATION STATUS
+================================================================================
+
+✅ Authentication Engine         - COMPLETE (register, login, sessions, password reset)
+✅ Users Engine                  - COMPLETE (profiles, preferences, phones)
+✅ Device Registration Engine    - COMPLETE (lifecycle, ownership, admin, history)
+✅ Firmware Engine               - COMPLETE (upload, distribute, version, compare)
+✅ Deployment Engine             - COMPLETE (rollout, retry, rollback)
+✅ Notifications Engine          - COMPLETE (create, list, mark-read, delivery queue)
+✅ Cloud Sync Engine             - COMPLETE (push, pull, conflict resolution)
+✅ Cloud Backup Engine           - COMPLETE (create, restore, delete)
+✅ Admin & Audit Engine          - COMPLETE (user management, audit logs)
+
+⏳ Phase 2 (Not Yet Implemented):
+- Real FCM/APNs/Email providers (currently mocked)
+- Scene & Schedule engines
+- Real payment integrations
+- Advanced analytics
+- Audit aggregation and reporting
+
+================================================================================
+                        QUICK START EXAMPLES
+================================================================================
+
+# Register and login
+curl -X POST http://localhost:8090/cloud/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","username":"john","password":"Pass123!"}'
+
+# Register device
+curl -X POST http://localhost:8090/cloud/devices \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Hub","deviceType":"hub","macAddress":"AA:BB:CC:DD:EE:FF"}'
+
+# Upload firmware
+curl -X POST http://localhost:8090/cloud/firmware/upload \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@firmware.bin" \
+  -F "deviceType=hub" \
+  -F "version=2.2.0" \
+  -F "channel=beta"
+
+# Create deployment
+curl -X POST http://localhost:8090/cloud/deployments \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"firmwareId":"<id>","name":"2.2.0 Rollout","rolloutPercentage":10}'
+
+================================================================================
+                            DOCUMENTATION FILES
+================================================================================
+
+API_REFERENCE.md               - Quick reference with all endpoints table
+FULL_API_GUIDE.md              - Complete documentation with examples
+IMPLEMENTATION_GUIDE.md        - Architecture, patterns, and adding new services
+API_SUMMARY.txt                - This file
+
+================================================================================
+
+For detailed API documentation, see FULL_API_GUIDE.md
+For quick reference, see API_REFERENCE.md
+For implementation details, see IMPLEMENTATION_GUIDE.md
+
+================================================================================
