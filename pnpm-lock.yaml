@@ -387,8 +387,8 @@ importers:
         specifier: ^2.10.0
         version: 2.15.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       tailwind-merge:
-        specifier: 'catalog:'
-        version: 3.6.0
+        specifier: ^2.2.0
+        version: 2.6.1
       tailwindcss:
         specifier: ^4.0.0
         version: 4.3.1
@@ -2440,6 +2440,8 @@ packages:
   '@react-native/codegen@0.81.5':
     resolution: {integrity: sha512-a2TDA03Up8lpSa9sh5VRGCQDXgCTOyDOFH+aqyinxp1HChG8uk89/G+nkJ9FPd0rqgi25eCTR16TWdS3b+fA6g==}
     engines: {node: '>= 20.19.4'}
+    peerDependencies:
+      '@babel/core': '*'
 
   '@react-native/community-cli-plugin@0.81.5':
     resolution: {integrity: sha512-yWRlmEOtcyvSZ4+OvqPabt+NS36vg0K/WADTQLhrYrm9qdZSuXmq8PmdJWz/68wAqKQ+4KTILiq2kjRQwnyhQw==}
@@ -6617,6 +6619,9 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
+  tailwind-merge@2.6.1:
+    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
+
   tailwind-merge@3.6.0:
     resolution: {integrity: sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w==}
 
@@ -9515,11 +9520,12 @@ snapshots:
 
   '@react-native/assets-registry@0.81.5': {}
 
-  '@react-native/babel-plugin-codegen@0.81.5':
+  '@react-native/babel-plugin-codegen@0.81.5(@babel/core@7.29.7)':
     dependencies:
       '@babel/traverse': 7.29.7
-      '@react-native/codegen': 0.81.5
+      '@react-native/codegen': 0.81.5(@babel/core@7.29.7)
     transitivePeerDependencies:
+      - '@babel/core'
       - supports-color
 
   '@react-native/babel-preset@0.81.5(@babel/core@7.29.7)':
@@ -9565,14 +9571,14 @@ snapshots:
       '@babel/plugin-transform-typescript': 7.29.7(@babel/core@7.29.7)
       '@babel/plugin-transform-unicode-regex': 7.29.7(@babel/core@7.29.7)
       '@babel/template': 7.29.7
-      '@react-native/babel-plugin-codegen': 0.81.5
+      '@react-native/babel-plugin-codegen': 0.81.5(@babel/core@7.29.7)
       babel-plugin-syntax-hermes-parser: 0.29.1
       babel-plugin-transform-flow-enums: 0.0.2(@babel/core@7.29.7)
       react-refresh: 0.14.2
     transitivePeerDependencies:
       - supports-color
 
-  '@react-native/codegen@0.81.5':
+  '@react-native/codegen@0.81.5(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/parser': 7.29.7
@@ -9581,8 +9587,6 @@ snapshots:
       invariant: 2.2.4
       nullthrows: 1.1.1
       yargs: 17.7.3
-    transitivePeerDependencies:
-      - supports-color
 
   '@react-native/community-cli-plugin@0.81.5':
     dependencies:
@@ -13787,7 +13791,7 @@ snapshots:
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
       '@react-native/assets-registry': 0.81.5
-      '@react-native/codegen': 0.81.5
+      '@react-native/codegen': 0.81.5(@babel/core@7.29.7)
       '@react-native/community-cli-plugin': 0.81.5
       '@react-native/gradle-plugin': 0.81.5
       '@react-native/js-polyfills': 0.81.5
@@ -13834,7 +13838,7 @@ snapshots:
     dependencies:
       '@jest/create-cache-key-function': 29.7.0
       '@react-native/assets-registry': 0.81.5
-      '@react-native/codegen': 0.81.5
+      '@react-native/codegen': 0.81.5(@babel/core@7.29.7)
       '@react-native/community-cli-plugin': 0.81.5
       '@react-native/gradle-plugin': 0.81.5
       '@react-native/js-polyfills': 0.81.5
@@ -14489,6 +14493,8 @@ snapshots:
       supports-color: 7.2.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  tailwind-merge@2.6.1: {}
 
   tailwind-merge@3.6.0: {}
 
