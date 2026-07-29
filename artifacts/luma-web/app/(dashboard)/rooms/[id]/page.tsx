@@ -161,8 +161,18 @@ export default function RoomDetailPage() {
           {room.devices.map((device) => (
             <DeviceCard
               key={device.id}
-              {...device}
-              onClick={() => router.push(`/devices/${device.id}`)}
+              device={{
+                id: device.id,
+                name: device.name,
+                room: device.room,
+                on: device.status === 'on',
+                online: device.status !== 'offline',
+                power: 0,
+                brightness: device.brightness ?? 0,
+                health: {
+                  signalQuality: device.status === 'offline' ? 0 : 80,
+                },
+              }}
             />
           ))}
         </div>
