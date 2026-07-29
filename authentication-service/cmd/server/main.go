@@ -22,6 +22,7 @@ import (
 	"github.com/luma-smart-home/authentication-service/internal/events"
 	"github.com/luma-smart-home/authentication-service/internal/jwt"
 	"github.com/luma-smart-home/authentication-service/internal/middleware"
+	"github.com/luma-smart-home/authentication-service/internal/passwords"
 	"github.com/luma-smart-home/authentication-service/internal/repositories"
 	"github.com/luma-smart-home/authentication-service/internal/security"
 	"github.com/luma-smart-home/authentication-service/internal/users"
@@ -112,6 +113,7 @@ func main() {
 	lockoutTracker := security.NewLockoutTracker(db, cfg.Security.LockoutAttempts, cfg.Security.LockoutDuration)
 	riskAnalyzer := security.NewRiskAnalyzer(db)
 	auditLogger := audit.NewAuditLogger(db, logger)
+	passwordMgr := passwords.NewPasswordManager(db)
 
 	// 10. Initialize Repositories
 	userRepo := repositories.NewGORMUserRepository(db)
@@ -138,6 +140,7 @@ func main() {
 		lockoutTracker,
 		riskAnalyzer,
 		blacklist,
+		passwordMgr,
 		cfg.Email.EmailVerificationMode,
 		cfg.Email.MagicLinkTTL,
 		cfg.Email.OTPTTL,
@@ -225,7 +228,6 @@ func main() {
 	if err == nil {
 		go func() {
 			logger.Info("gRPC Mock Service listening", zap.String("port", cfg.GRPCPort))
-			// Standard loop to accept TCP connections cleanly (acts as a mock server)
 			for {
 				conn, err := grpcListener.Accept()
 				if err != nil {
@@ -259,7 +261,6 @@ func main() {
 }
 
 func seedServiceAccounts(s *auth.Service, logger *zap.Logger) {
-	// Seed MQTT service, Device Service, Notification Service etc.
 	services := []struct {
 		name   string
 		id     string

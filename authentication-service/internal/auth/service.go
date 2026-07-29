@@ -31,24 +31,25 @@ var (
 )
 
 type Service struct {
-	userRepo       repositories.UserRepository
-	sessionRepo    repositories.SessionRepository
-	refreshRepo    repositories.RefreshTokenRepository
+	userRepo        repositories.UserRepository
+	sessionRepo     repositories.SessionRepository
+	refreshRepo     repositories.RefreshTokenRepository
 	emailVerifyRepo repositories.EmailVerificationRepository
-	resetRepo      repositories.PasswordResetTokenRepository
-	oauthRepo      repositories.OAuthAccountRepository
-	serviceRepo    repositories.ServiceAccountRepository
-	tokenManager   *jwt.TokenManager
-	emailProvider  email.Provider
-	eventPublisher events.Publisher
-	auditLogger    *audit.AuditLogger
-	lockoutTracker *security.LockoutTracker
-	riskAnalyzer   *security.RiskAnalyzer
-	blacklist      security.TokenBlacklist
-	verifyMode     string // "OR", "AND", "MAGIC_LINK_ONLY", "OTP_ONLY"
-	magicLinkTTL   time.Duration
-	otpTTL         time.Duration
-	otpMaxAttempts int
+	resetRepo       repositories.PasswordResetTokenRepository
+	oauthRepo       repositories.OAuthAccountRepository
+	serviceRepo     repositories.ServiceAccountRepository
+	tokenManager    *jwt.TokenManager
+	emailProvider   email.Provider
+	eventPublisher  events.Publisher
+	auditLogger     *audit.AuditLogger
+	lockoutTracker  *security.LockoutTracker
+	riskAnalyzer    *security.RiskAnalyzer
+	blacklist       security.TokenBlacklist
+	passwordMgr     *passwords.PasswordManager
+	verifyMode      string // "OR", "AND", "MAGIC_LINK_ONLY", "OTP_ONLY"
+	magicLinkTTL    time.Duration
+	otpTTL          time.Duration
+	otpMaxAttempts  int
 }
 
 func NewService(
@@ -66,6 +67,7 @@ func NewService(
 	lockoutTracker *security.LockoutTracker,
 	riskAnalyzer *security.RiskAnalyzer,
 	blacklist security.TokenBlacklist,
+	passwordMgr *passwords.PasswordManager,
 	verifyMode string,
 	magicLinkTTL, otpTTL time.Duration,
 	otpMaxAttempts int,
@@ -85,6 +87,7 @@ func NewService(
 		lockoutTracker:  lockoutTracker,
 		riskAnalyzer:    riskAnalyzer,
 		blacklist:       blacklist,
+		passwordMgr:     passwordMgr,
 		verifyMode:      verifyMode,
 		magicLinkTTL:    magicLinkTTL,
 		otpTTL:          otpTTL,
@@ -106,6 +109,11 @@ func (s *Service) Register(ctx context.Context, email, password, username, phone
 		if err == nil && existingUser != nil {
 			return nil, ErrDuplicateUsername
 		}
+	}
+
+	// Validate Strength
+	if err := s.passwordMgr.ValidateStrength(password); err != nil {
+		return nil, err
 	}
 
 	hash, err := passwords.HashPassword(password, nil)
@@ -131,6 +139,11 @@ func (s *Service) Register(ctx context.Context, email, password, username, phone
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
+		return nil, err
+	}
+
+	// Save credential history
+	if err := s.passwordMgr.RecordAndVerifyHistory(userID, password); err != nil {
 		return nil, err
 	}
 
@@ -636,12 +649,13 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string, 
 		return err
 	}
 
-	// Update password
-	newHash, err := passwords.HashPassword(newPassword, nil)
-	if err != nil {
+	// Verify strength and prevent reuse of last 3 passwords
+	if err := s.passwordMgr.RecordAndVerifyHistory(user.ID, newPassword); err != nil {
 		return err
 	}
 
+	// Update password
+	newHash, _ := passwords.HashPassword(newPassword, nil)
 	user.PasswordHash = newHash
 	user.UpdatedAt = time.Now()
 	_ = s.userRepo.Update(user)

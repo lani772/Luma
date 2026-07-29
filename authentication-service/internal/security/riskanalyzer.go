@@ -20,6 +20,7 @@ const (
 type RiskAssessment struct {
 	Level               RiskLevel `json:"level"`
 	Reason              string    `json:"reason"`
+	ThreatScore         int       `json:"threat_score"` // 0 to 100 numerical score
 	StepUpRequired      bool      `json:"step_up_required"`
 }
 
@@ -32,7 +33,7 @@ func NewRiskAnalyzer(db *gorm.DB) *RiskAnalyzer {
 }
 
 func (ra *RiskAnalyzer) AssessRisk(ctx context.Context, userID uuid.UUID, reqIP, reqUserAgent, reqDeviceID string) (*RiskAssessment, error) {
-	// 1. If no previous sessions exist, it's a first-time login on a new device. Considered Low/Medium risk by default.
+	// If no previous sessions exist, first-time user profile is considered low risk initially (Score 10)
 	var count int64
 	err := ra.db.Model(&database.Session{}).Where("user_id = ?", userID).Count(&count).Error
 	if err != nil {
@@ -41,81 +42,77 @@ func (ra *RiskAnalyzer) AssessRisk(ctx context.Context, userID uuid.UUID, reqIP,
 	if count == 0 {
 		return &RiskAssessment{
 			Level:               RiskLevelLow,
-			Reason:              "first time user account registration or session",
+			Reason:              "first-time user session registration",
+			ThreatScore:         10,
 			StepUpRequired:      false,
 		}, nil
 	}
 
-	// 2. Look up all active sessions to see if this DeviceID has logged in before.
-	var matchingSessions []database.Session
-	err = ra.db.Where("user_id = ? AND device_id = ? AND status = 'active'", userID, reqDeviceID).Find(&matchingSessions).Error
+	threatScore := 0
+	reasons := []string{}
+
+	// 1. Device recognition check (Weight: 40 points)
+	var matchingDeviceSessions int64
+	err = ra.db.Model(&database.Session{}).Where("user_id = ? AND device_id = ? AND status = 'active'", userID, reqDeviceID).Count(&matchingDeviceSessions).Error
 	if err != nil {
 		return nil, err
 	}
-
-	// If device is already known, analyze IP or browser changes
-	if len(matchingSessions) > 0 {
-		knownIP := false
-		knownUA := false
-		for _, s := range matchingSessions {
-			if s.IPAddress == reqIP {
-				knownIP = true
-			}
-			if s.Browser == reqUserAgent {
-				knownUA = true
-			}
-		}
-
-		if knownIP && knownUA {
-			return &RiskAssessment{
-				Level:               RiskLevelLow,
-				Reason:              "verified device and network profile match",
-				StepUpRequired:      false,
-			}, nil
-		}
-
-		// Known device but IP/UA changed (e.g. user traveling or switching networks)
-		return &RiskAssessment{
-			Level:               RiskLevelMedium,
-			Reason:              "verified device on a new network address or browser",
-			StepUpRequired:      false,
-		}, nil
+	if matchingDeviceSessions == 0 {
+		threatScore += 40
+		reasons = append(reasons, "unrecognized device fingerprint (+40)")
 	}
 
-	// 3. New device ID login.
-	// Check if the login requests are from a totally new IP address that hasn't been seen anywhere in the user's login history.
-	var sameIPSessions int64
-	err = ra.db.Model(&database.Session{}).Where("user_id = ? AND ip_address = ?", userID, reqIP).Count(&sameIPSessions).Error
+	// 2. Unrecognized IP address / network context check (Weight: 35 points)
+	var matchingIPSessions int64
+	err = ra.db.Model(&database.Session{}).Where("user_id = ? AND ip_address = ?", userID, reqIP).Count(&matchingIPSessions).Error
 	if err != nil {
 		return nil, err
 	}
-
-	if sameIPSessions > 0 {
-		// New device, but from a previously verified IP address (e.g. user bought a new phone at home)
-		return &RiskAssessment{
-			Level:               RiskLevelMedium,
-			Reason:              "new device identified on a familiar network",
-			StepUpRequired:      false,
-		}, nil
+	if matchingIPSessions == 0 {
+		threatScore += 35
+		reasons = append(reasons, "new network address origin (+35)")
 	}
 
-	// Suspicious login: New Device ID AND New IP Address.
-	// We require Step-Up Verification!
-	reason := "suspicious login attempt: unrecognized device fingerprint and network"
+	// 3. User-Agent heuristics / Headless / Automation Bot check (Weight: 30 points)
+	reqUaLower := strings.ToLower(reqUserAgent)
+	if strings.Contains(reqUaLower, "bot") || strings.Contains(reqUaLower, "headless") || strings.Contains(reqUaLower, "phantomjs") || strings.Contains(reqUaLower, "selenium") {
+		threatScore += 30
+		reasons = append(reasons, "suspicious automation agent fingerprint (+30)")
+	}
 
-	// Add location checking heuristic if headers indicate proxy/travel (simulated)
-	if strings.Contains(reqUserAgent, "Bot") || strings.Contains(reqUserAgent, "Headless") {
-		reason = "suspicious automated browser profile detected"
-		return &RiskAssessment{
-			Level:               RiskLevelHigh,
-			Reason:              reason,
-			StepUpRequired:      true,
-		}, nil
+	// 4. Lockout failed login history check (Weight: 20 points)
+	var attempt database.LoginAttempt
+	err = ra.db.Where("key = ?", userID.String()).First(&attempt).Error
+	if err == nil && attempt.Attempts > 1 {
+		threatScore += 20
+		reasons = append(reasons, "history of recent failed login attempts (+20)")
+	}
+
+	// Bound threatScore to maximum of 100
+	if threatScore > 100 {
+		threatScore = 100
+	}
+
+	// Evaluate level based on cumulative score thresholds
+	level := RiskLevelLow
+	stepUpRequired := false
+	if threatScore >= 70 {
+		level = RiskLevelHigh
+		stepUpRequired = true
+	} else if threatScore >= 30 {
+		level = RiskLevelMedium
+		stepUpRequired = false
+	}
+
+	reasonStr := strings.Join(reasons, ", ")
+	if reasonStr == "" {
+		reasonStr = "verified device and network profile match"
 	}
 
 	return &RiskAssessment{
-		Level:               RiskLevelHigh,
-		Reason:              reason,
-		StepUpRequired:      true,
+		Level:               level,
+		Reason:              reasonStr,
+		ThreatScore:         threatScore,
+		StepUpRequired:      stepUpRequired,
 	}, nil
 }
