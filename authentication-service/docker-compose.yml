@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  auth-db:
+    image: postgres:16-alpine
+    container_name: luma-auth-db
+    environment:
+      POSTGRES_USER: luma_auth_user
+      POSTGRES_PASSWORD: luma_secure_password
+      POSTGRES_DB: luma_auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luma_auth_user -d luma_auth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-redis:
+    image: redis:7-alpine
+    container_name: luma-auth-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - auth_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth-mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: luma-auth-mailhog
+    ports:
+      - "1025:1025" # SMTP port
+      - "8025:8025" # Web UI port
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: luma-auth-service
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      auth-redis:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+      - "50051:50051"
+    environment:
+      - ENV=development
+      - PORT=8081
+      - GRPC_PORT=50051
+      - DATABASE_URL=postgres://luma_auth_user:luma_secure_password@auth-db:5432/luma_auth_db?sslmode=disable
+      - REDIS_URL=redis://auth-redis:6379/0
+      - JWT_ISSUER=luma-auth-service
+      - JWT_ACCESS_TTL=15m
+      - JWT_REFRESH_TTL=720h
+      - JWT_ALGORITHM=EdDSA
+      - EMAIL_VERIFICATION_MODE=OR
+      - EMAIL_PROVIDER=smtp
+      - SMTP_HOST=auth-mailhog
+      - SMTP_PORT=1025
+      - SMTP_USER=
+      - SMTP_PASSWORD=
+      - SMTP_FROM=no-reply@luma.local
+      - MAGIC_LINK_TTL=15m
+      - OTP_TTL=5m
+      - OTP_MAX_ATTEMPTS=5
+      - EVENT_BROKER_TYPE=memory
+      - LOCKOUT_ATTEMPTS=5
+      - LOCKOUT_DURATION=15m
+      - RATE_LIMIT_LOGIN_RPM=5
+      - RATE_LIMIT_OTP_RPM=5
+      - RATE_LIMIT_PASSWORD_RPM=3
+      - RATE_LIMIT_GENERAL_RPM=60
+
+volumes:
+  auth_db_data:
+  auth_redis_data:
