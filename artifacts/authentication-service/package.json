@@ -1,0 +1,61 @@
+{
+  "name": "@luma/authentication-service",
+  "version": "1.0.0",
+  "description": "Advanced JWT-based authentication service with MFA and OAuth2 integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "docker:build": "docker build -t luma-auth-service .",
+    "docker:run": "docker run -p 3001:3001 luma-auth-service"
+  },
+  "keywords": [
+    "authentication",
+    "jwt",
+    "oauth2",
+    "mfa",
+    "session-management"
+  ],
+  "author": "LUMA Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-validator": "^7.0.0",
+    "jsonwebtoken": "^9.1.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.1",
+    "redis": "^4.6.10",
+    "axios": "^1.6.0",
+    "joi": "^17.11.0",
+    "speakeasy": "^2.0.0",
+    "qrcode": "^1.5.3",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "express-ratelimit": "^7.1.5",
+    "winston": "^3.11.0",
+    "pino": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.0",
+    "@types/jest": "^29.5.8",
+    "typescript": "^5.3.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "eslint": "^8.54.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/parser": "^6.13.2",
+    "prettier": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
