@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: LUMA User Access Management Service (UAMS) API
+  description: standalone, independent service responsible for handling authorization, permissions, resource sharing, ownership, and access synchronization.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8095/api/v1
+    description: Local development server
+paths:
+  /roles/assign:
+    post:
+      summary: Assign a role to a user for a microcontroller
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - microcontrollerId
+                - role
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                microcontrollerId:
+                  type: string
+                  format: uuid
+                role:
+                  type: string
+                  enum: [owner, administrator, operator, viewer]
+      responses:
+        "201":
+          description: Role successfully assigned
+        "400":
+          description: Validation error
+        "403":
+          description: Unauthorized action
+
+  /roles:
+    get:
+      summary: List role assignments with optional filters
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: microcontrollerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of role assignments
+
+  /roles/{id}:
+    patch:
+      summary: Update a user's role assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [owner, administrator, operator, viewer]
+      responses:
+        "200":
+          description: Role updated successfully
+    delete:
+      summary: Remove a role assignment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Role assignment removed
+
+  /permissions/grant:
+    post:
+      summary: Grant a resource-scoped custom permission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - microcontrollerId
+                - resourceId
+                - resourceType
+                - allowedActions
+              properties:
+                userId:
+                  type: string
+                microcontrollerId:
+                  type: string
+                resourceId:
+                  type: string
+                resourceType:
+                  type: string
+                  enum: [microcontroller, home, room, device, feature]
+                allowedActions:
+                  type: array
+                  items:
+                    type: string
+                temporary:
+                  type: boolean
+                startTime:
+                  type: string
+                  format: date-time
+                endTime:
+                  type: string
+                  format: date-time
+      responses:
+        "201":
+          description: Permission successfully granted
+
+  /permissions/check:
+    post:
+      summary: Check if a user can execute an action on a resource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - microcontrollerId
+                - resourceId
+                - resourceType
+                - action
+              properties:
+                userId:
+                  type: string
+                microcontrollerId:
+                  type: string
+                resourceId:
+                  type: string
+                resourceType:
+                  type: string
+                action:
+                  type: string
+      responses:
+        "200":
+          description: Check response with success boolean
+
+  /permissions/{id}:
+    delete:
+      summary: Revoke a permission
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Permission revoked
+
+  /invitations:
+    post:
+      summary: Create and send resource-based invitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipientEmail
+                - resourceId
+                - resourceType
+                - permissionLevel
+              properties:
+                recipientEmail:
+                  type: string
+                recipientPhone:
+                  type: string
+                resourceId:
+                  type: string
+                resourceType:
+                  type: string
+                permissionLevel:
+                  type: string
+                personalMessage:
+                  type: string
+      responses:
+        "201":
+          description: Invitation created
+    get:
+      summary: List invitations with filters
+      parameters:
+        - name: senderId
+          in: query
+          schema:
+            type: string
+        - name: recipientEmail
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of invitations
+
+  /invitations/{id}/accept:
+    post:
+      summary: Accept an invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invitation accepted, permissions created
+
+  /invitations/{id}/reject:
+    post:
+      summary: Reject an invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Invitation rejected
+
+  /access-requests:
+    post:
+      summary: Create a user-initiated access request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resourceId
+                - resourceType
+                - requestedRole
+              properties:
+                resourceId:
+                  type: string
+                resourceType:
+                  type: string
+                requestedRole:
+                  type: string
+                requestedDuration:
+                  type: integer
+                message:
+                  type: string
+      responses:
+        "201":
+          description: Access request created
+    get:
+      summary: List access requests
+      parameters:
+        - name: requesterId
+          in: query
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of access requests
+
+  /access-requests/{id}/approve:
+    post:
+      summary: Approve an access request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Request approved, permissions granted
+
+  /access-requests/{id}/reject:
+    post:
+      summary: Reject an access request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Request rejected
+
+  /ownership/request:
+    post:
+      summary: Initiate owner-transfer request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - microcontrollerId
+                - newOwnerEmail
+              properties:
+                microcontrollerId:
+                  type: string
+                newOwnerEmail:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Transfer request created
+
+  /ownership/accept:
+    post:
+      summary: Accept ownership transfer request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transferId
+              properties:
+                transferId:
+                  type: string
+      responses:
+        "200":
+          description: Transfer accepted, ownership rotated and old keys revoked
+
+  /ownership/reject:
+    post:
+      summary: Reject ownership transfer request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transferId
+              properties:
+                transferId:
+                  type: string
+      responses:
+        "200":
+          description: Transfer rejected
