@@ -1,5 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import {
+  DEMO_AUTH,
+  DEMO_ACCESS_REQUESTS,
+  DEMO_DEVICES,
+  DEMO_EMAIL,
+  DEMO_PASSWORD,
+  DEMO_PULL_SYNC,
+  DEMO_PUSH_SYNC,
+  DEMO_RECEIVED_INVITATIONS,
+  DEMO_SENT_INVITATIONS,
+  DEMO_SESSIONS,
+  DEMO_USER,
+  makeDemoSyncData,
+} from "./demo-data";
 
 const CLOUD_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/cloud`
@@ -12,6 +26,31 @@ const KEY_USER      = "@luma/cloud_user";
 const KEY_PHONE     = "@luma/cloud_phone_id";
 const KEY_USERNAME  = "@luma/cloud_username";
 const KEY_SYNC_DATA = "@luma/cloud_sync_cache";
+const KEY_DEMO_MODE = "@luma/demo_mode";
+
+// ── Demo mode ────────────────────────────────────────────────────────────────────
+
+/** In-memory flag; restored from AsyncStorage during app init. */
+let _demoMode = false;
+
+export async function initDemoMode(): Promise<void> {
+  try {
+    const val = await AsyncStorage.getItem(KEY_DEMO_MODE);
+    _demoMode = val === "1";
+  } catch { /* ignore */ }
+}
+
+export function isDemoMode(): boolean { return _demoMode; }
+
+async function enableDemoMode(): Promise<void> {
+  _demoMode = true;
+  await AsyncStorage.setItem(KEY_DEMO_MODE, "1");
+}
+
+async function disableDemoMode(): Promise<void> {
+  _demoMode = false;
+  await AsyncStorage.removeItem(KEY_DEMO_MODE);
+}
 
 // ── Domain types ────────────────────────────────────────────────────────────────
 
@@ -134,6 +173,10 @@ async function apiFetch<T>(
   path: string,
   opts: RequestInit & { skipAuth?: boolean; _isRetry?: boolean } = {},
 ): Promise<T> {
+  if (_demoMode) {
+    throw Object.assign(new Error("Demo mode active"), { code: "DEMO_MODE", status: 0 });
+  }
+
   const { skipAuth, _isRetry, headers: headersInit, ...init } = opts;
   const hdrs = new Headers(headersInit as Record<string, string> | undefined);
   hdrs.set("Content-Type", "application/json");
@@ -181,8 +224,9 @@ async function apiFetchOptional<T>(
   try {
     return await apiFetch<T>(path, opts);
   } catch (err) {
-    const e = err as { status?: number };
-    if (e.status === 404 || e.status === 501 || e.status === 405 || e.status === 501) {
+    const e = err as { status?: number; code?: string };
+    if (e.code === "DEMO_MODE") return fallback;
+    if (e.status === 404 || e.status === 501 || e.status === 405) {
       return fallback;
     }
     return fallback; // also swallow network errors for optional endpoints
@@ -195,13 +239,20 @@ export const CloudAPI = {
 
   // ── Authentication ──────────────────────────────────────────────────────────
 
-  login(identifier: string, password: string): Promise<AuthResponse> {
-    const isEmail = identifier.includes("@");
+  async login(identifier: string, password: string): Promise<AuthResponse> {
+    // Demo credentials — work fully offline
+    if (
+      (identifier.toLowerCase() === DEMO_EMAIL || identifier.toLowerCase() === "demo") &&
+      password === DEMO_PASSWORD
+    ) {
+      await enableDemoMode();
+      return { ...DEMO_AUTH, user: { ...DEMO_USER, lastLoginAt: new Date().toISOString() } };
+    }
     return apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
       skipAuth: true,
       body: JSON.stringify({
-        ...(isEmail ? { email: identifier } : { username: identifier }),
+        ...(identifier.includes("@") ? { email: identifier } : { username: identifier }),
         password,
         deviceName: "LUMA Mobile App",
         platform: Platform.OS === "ios" || Platform.OS === "android" || Platform.OS === "web" ? Platform.OS : "other",
@@ -230,6 +281,7 @@ export const CloudAPI = {
   },
 
   refresh(refreshToken: string): Promise<AuthResponse> {
+    if (_demoMode) return Promise.resolve({ ...DEMO_AUTH });
     return apiFetch<AuthResponse>("/auth/refresh", {
       method: "POST",
       skipAuth: true,
@@ -238,6 +290,7 @@ export const CloudAPI = {
   },
 
   async logout(refreshToken: string): Promise<void> {
+    if (_demoMode) { await disableDemoMode(); return; }
     await apiFetch<unknown>("/auth/logout", {
       method: "POST",
       body: JSON.stringify({ refreshToken }),
@@ -245,6 +298,7 @@ export const CloudAPI = {
   },
 
   requestPasswordReset(email: string): Promise<{ message?: string }> {
+    if (_demoMode) return Promise.resolve({ message: "Demo mode: password reset not available" });
     return apiFetch<{ message?: string }>("/auth/request-password-reset", {
       method: "POST",
       skipAuth: true,
@@ -253,6 +307,7 @@ export const CloudAPI = {
   },
 
   resetPassword(token: string, newPassword: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>("/auth/reset-password", {
       method: "POST",
       skipAuth: true,
@@ -261,6 +316,7 @@ export const CloudAPI = {
   },
 
   resendVerificationEmail(): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>("/auth/resend-verification", {
       method: "POST",
       body: JSON.stringify({}),
@@ -270,6 +326,7 @@ export const CloudAPI = {
   // ── Internal: serialised token refresh ─────────────────────────────────────
 
   async _tryRefresh(): Promise<string | null> {
+    if (_demoMode) return DEMO_AUTH.accessToken;
     if (_isRefreshing) {
       return new Promise<string | null>(resolve => {
         _refreshWaiters.push(resolve);
@@ -298,12 +355,14 @@ export const CloudAPI = {
   // ── User profile ────────────────────────────────────────────────────────────
 
   getProfile(): Promise<CloudUser> {
+    if (_demoMode) return Promise.resolve({ ...DEMO_USER });
     return apiFetch<CloudUser>("/api/engines/users/me");
   },
 
   updateProfile(
     patch: Partial<Pick<CloudUser, "fullName" | "username" | "preferences">>,
   ): Promise<CloudUser> {
+    if (_demoMode) return Promise.resolve({ ...DEMO_USER, ...patch });
     return apiFetch<CloudUser>("/api/engines/users/me", {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -311,6 +370,7 @@ export const CloudAPI = {
   },
 
   deleteAccount(password?: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>("/api/engines/users/me", {
       method: "DELETE",
       body: JSON.stringify({ password }),
@@ -318,6 +378,7 @@ export const CloudAPI = {
   },
 
   changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>("/auth/change-password", {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword }),
@@ -327,20 +388,24 @@ export const CloudAPI = {
   // ── Sessions ────────────────────────────────────────────────────────────────
 
   getSessions(): Promise<CloudSession[]> {
+    if (_demoMode) return Promise.resolve([...DEMO_SESSIONS]);
     return apiFetchOptional<CloudSession[]>("/auth/sessions", {}, []);
   },
 
   revokeSession(sessionId: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/auth/sessions/${sessionId}`, { method: "DELETE" });
   },
 
   revokeAllOtherSessions(): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>("/auth/sessions/revoke-others", { method: "POST", body: "{}" });
   },
 
   // ── Devices (microcontrollers) ──────────────────────────────────────────────
 
   getDevices(): Promise<CloudDevice[]> {
+    if (_demoMode) return Promise.resolve([...DEMO_DEVICES]);
     return apiFetchOptional<CloudDevice[]>("/api/engines/devices", {}, []);
   },
 
@@ -352,6 +417,13 @@ export const CloudAPI = {
     deviceId: string;
     registrationKey: string;
   }): Promise<CloudDevice> {
+    if (_demoMode) {
+      const dev: CloudDevice = {
+        id: `dev-${Date.now()}`, ...data, ownerId: "demo-user-001",
+        status: "active", registeredAt: new Date().toISOString(),
+      };
+      return Promise.resolve(dev);
+    }
     return apiFetch<CloudDevice>("/api/engines/devices", {
       method: "POST",
       body: JSON.stringify(data),
@@ -362,6 +434,10 @@ export const CloudAPI = {
     id: string,
     patch: Partial<{ name: string; description: string }>,
   ): Promise<CloudDevice> {
+    if (_demoMode) {
+      const found = DEMO_DEVICES.find(d => d.id === id) ?? DEMO_DEVICES[0];
+      return Promise.resolve({ ...found, ...patch });
+    }
     return apiFetch<CloudDevice>(`/api/engines/devices/${id}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
@@ -369,6 +445,7 @@ export const CloudAPI = {
   },
 
   deleteDevice(id: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/devices/${id}`, { method: "DELETE" });
   },
 
@@ -377,6 +454,7 @@ export const CloudAPI = {
     toEmail: string,
     previousOwnerBecomesAdmin = false,
   ): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/devices/${deviceId}/transfer-ownership`, {
       method: "POST",
       body: JSON.stringify({ toEmail, previousOwnerBecomesAdmin }),
@@ -386,10 +464,12 @@ export const CloudAPI = {
   // ── Invitations ─────────────────────────────────────────────────────────────
 
   getReceivedInvitations(): Promise<CloudInvitation[]> {
+    if (_demoMode) return Promise.resolve([...DEMO_RECEIVED_INVITATIONS]);
     return apiFetchOptional<CloudInvitation[]>("/api/engines/invitations/received", {}, []);
   },
 
   getSentInvitations(): Promise<CloudInvitation[]> {
+    if (_demoMode) return Promise.resolve([...DEMO_SENT_INVITATIONS]);
     return apiFetchOptional<CloudInvitation[]>("/api/engines/invitations/sent", {}, []);
   },
 
@@ -401,6 +481,15 @@ export const CloudAPI = {
     expiresInDays?: number;
     message?: string;
   }): Promise<CloudInvitation> {
+    if (_demoMode) {
+      const inv: CloudInvitation = {
+        id: `inv-${Date.now()}`, fromUserId: "demo-user-001", fromUserName: "Demo User",
+        ...data, deviceName: "Demo Device",
+        expiresAt: new Date(Date.now() + 86_400_000 * (data.expiresInDays ?? 7)).toISOString(),
+        status: "pending", createdAt: new Date().toISOString(),
+      };
+      return Promise.resolve(inv);
+    }
     return apiFetch<CloudInvitation>("/api/engines/invitations", {
       method: "POST",
       body: JSON.stringify(data),
@@ -408,6 +497,7 @@ export const CloudAPI = {
   },
 
   acceptInvitation(id: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/invitations/${id}/accept`, {
       method: "POST",
       body: "{}",
@@ -415,6 +505,7 @@ export const CloudAPI = {
   },
 
   declineInvitation(id: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/invitations/${id}/decline`, {
       method: "POST",
       body: "{}",
@@ -422,12 +513,14 @@ export const CloudAPI = {
   },
 
   cancelInvitation(id: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/invitations/${id}`, { method: "DELETE" });
   },
 
   // ── Access requests ─────────────────────────────────────────────────────────
 
   getAccessRequests(): Promise<CloudAccessRequest[]> {
+    if (_demoMode) return Promise.resolve([...DEMO_ACCESS_REQUESTS]);
     return apiFetchOptional<CloudAccessRequest[]>("/api/engines/access-requests", {}, []);
   },
 
@@ -441,6 +534,14 @@ export const CloudAPI = {
     permissionLevel: string;
     message?: string;
   }): Promise<CloudAccessRequest> {
+    if (_demoMode) {
+      const req: CloudAccessRequest = {
+        id: `req-${Date.now()}`, requesterId: "demo-user-001",
+        requesterName: "Demo User", requesterEmail: DEMO_EMAIL,
+        ...data, status: "pending", requestedAt: new Date().toISOString(),
+      };
+      return Promise.resolve(req);
+    }
     return apiFetch<CloudAccessRequest>("/api/engines/access-requests", {
       method: "POST",
       body: JSON.stringify(data),
@@ -448,6 +549,7 @@ export const CloudAPI = {
   },
 
   approveAccessRequest(id: string, permissions: string[]): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/access-requests/${id}/approve`, {
       method: "POST",
       body: JSON.stringify({ permissions }),
@@ -455,6 +557,7 @@ export const CloudAPI = {
   },
 
   rejectAccessRequest(id: string): Promise<void> {
+    if (_demoMode) return Promise.resolve();
     return apiFetch<void>(`/api/engines/access-requests/${id}/reject`, {
       method: "POST",
       body: "{}",
@@ -467,6 +570,7 @@ export const CloudAPI = {
     phoneId: string,
     resources: Array<Omit<SyncResource, "updatedAt" | "deleted">>,
   ): Promise<PushSyncResponse> {
+    if (_demoMode) return Promise.resolve({ ...DEMO_PUSH_SYNC });
     const payload = resources.map(r => ({
       ...r,
       updatedAt: new Date().toISOString(),
@@ -479,6 +583,7 @@ export const CloudAPI = {
   },
 
   syncPull(phoneId: string, resourceType: string, lastVersion = 0): Promise<PullSyncResponse> {
+    if (_demoMode) return Promise.resolve({ ...DEMO_PULL_SYNC });
     return apiFetch<PullSyncResponse>("/sync/pull", {
       method: "POST",
       body: JSON.stringify({ phoneId, resourceType, lastVersion }),
@@ -487,6 +592,12 @@ export const CloudAPI = {
 
   /** Full post-login sync — fetches all cloud resources and caches locally. */
   async syncAllData(): Promise<CloudSyncData> {
+    if (_demoMode) {
+      const data = makeDemoSyncData();
+      await AsyncStorage.setItem(KEY_SYNC_DATA, JSON.stringify(data));
+      return data;
+    }
+
     const [devR, invR, reqR] = await Promise.allSettled([
       CloudAPI.getDevices(),
       CloudAPI.getReceivedInvitations(),
@@ -530,6 +641,7 @@ export const CloudAPI = {
   },
 
   async clearAuth(): Promise<void> {
+    await disableDemoMode();
     await AsyncStorage.multiRemove([
       KEY_ACCESS, KEY_REFRESH, KEY_USER, KEY_USERNAME, KEY_SYNC_DATA,
     ]);

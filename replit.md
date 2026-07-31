@@ -1,11 +1,15 @@
 # LUMA Smart Home
 
-A smart home management platform with a React Native/Expo mobile app and an Express API backend.
+A smart home management platform with a React Native/Expo mobile app, a Node.js API backend, and a Go cloud backend.
 
 ## Run & Operate
 
-- **API Server** — workflow `API Server` runs `PORT=8080 pnpm --filter @workspace/api-server run dev` (port 8080)
-- **Mobile App** — workflow `LUMA Smart Home` runs Expo on port 8000; scan the QR code in the workflow console with the Expo Go app
+- **Mobile App** — workflow `artifacts/luma-smart-home: expo` runs Expo on port 20792; open the web preview or scan the QR code in the console with the Expo Go app
+  - **Demo login**: `demo@luma.app` / `demo1234` — works fully offline, no backend required
+  - All REST cloud API calls return rich mock data in demo mode
+  - Local data is persisted via SQLite (expo-sqlite) on native, AsyncStorage fallback on web
+- **API Server** — workflow `artifacts/api-server: API Server` runs on port 8080
+- **Go Cloud Backend** — workflow `artifacts/luma-cloud-backend: LUMA Cloud Backend` on port 8090 (requires `MONGODB_URI` secret)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec

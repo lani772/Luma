@@ -1,14 +1,107 @@
 // Database Engine — typed, namespaced on-device persistent storage
+// Backed by expo-sqlite (SQLite) on native; falls back to AsyncStorage on web.
 // Spec: docs/mobile-core-engine/DatabaseEngine.md
-// Generalizes MQTTStorage.ts pattern to the whole app.
-// Uses AsyncStorage as the backing store; typed table API over JSON blobs.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import type { CoreEngineId, EngineHealthInfo } from "./types";
 import type { IEngine } from "./types";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2; // bumped: v1=AsyncStorage, v2=SQLite
 const NS = "@luma_core";
+
+// ── SQLite lazy import (native only) ────────────────────────────────────────────
+
+type SQLiteDB = {
+  execAsync(sql: string): Promise<void>;
+  runAsync(sql: string, ...params: (string | number | null)[]): Promise<unknown>;
+  getFirstAsync<T>(sql: string, ...params: (string | number | null)[]): Promise<T | null>;
+  getAllAsync<T>(sql: string, ...params: (string | number | null)[]): Promise<T[]>;
+};
+
+let _sqliteDb: SQLiteDB | null = null;
+let _sqliteReady = false;
+
+async function getSQLiteDB(): Promise<SQLiteDB | null> {
+  if (Platform.OS === "web") return null; // use AsyncStorage fallback on web
+  if (_sqliteReady) return _sqliteDb;
+  try {
+    // Dynamic import so web bundles are unaffected
+    const SQLite = await import("expo-sqlite");
+    _sqliteDb = await (SQLite as any).openDatabaseAsync("luma_core.db") as SQLiteDB;
+    await _sqliteDb!.execAsync(`
+      CREATE TABLE IF NOT EXISTS kv_store (
+        key   TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      );
+    `);
+    _sqliteReady = true;
+    return _sqliteDb;
+  } catch (err) {
+    console.warn("[DatabaseEngine] SQLite init failed, falling back to AsyncStorage:", err);
+    _sqliteReady = true;
+    _sqliteDb = null;
+    return null;
+  }
+}
+
+// ── Storage helpers (SQLite with AsyncStorage fallback) ──────────────────────────
+
+async function kvGet(key: string): Promise<string | null> {
+  const db = await getSQLiteDB();
+  if (db) {
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM kv_store WHERE key = ?", key
+    );
+    return row?.value ?? null;
+  }
+  return AsyncStorage.getItem(key);
+}
+
+async function kvSet(key: string, value: string): Promise<void> {
+  const db = await getSQLiteDB();
+  if (db) {
+    await db.runAsync(
+      "INSERT OR REPLACE INTO kv_store (key, value) VALUES (?, ?)", key, value
+    );
+    return;
+  }
+  await AsyncStorage.setItem(key, value);
+}
+
+async function kvRemove(key: string): Promise<void> {
+  const db = await getSQLiteDB();
+  if (db) {
+    await db.runAsync("DELETE FROM kv_store WHERE key = ?", key);
+    return;
+  }
+  await AsyncStorage.removeItem(key);
+}
+
+async function kvGetAllKeys(prefix: string): Promise<string[]> {
+  const db = await getSQLiteDB();
+  if (db) {
+    const rows = await db.getAllAsync<{ key: string }>(
+      "SELECT key FROM kv_store WHERE key LIKE ?", `${prefix}%`
+    );
+    return rows.map(r => r.key);
+  }
+  const allKeys = await AsyncStorage.getAllKeys();
+  return allKeys.filter(k => k.startsWith(prefix));
+}
+
+async function kvMultiRemove(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  const db = await getSQLiteDB();
+  if (db) {
+    const placeholders = keys.map(() => "?").join(", ");
+    await db.runAsync(`DELETE FROM kv_store WHERE key IN (${placeholders})`, ...keys);
+    return;
+  }
+  await AsyncStorage.multiRemove(keys);
+}
+
+// ── Public types ─────────────────────────────────────────────────────────────────
 
 export interface TableRecord {
   id: string;
@@ -39,6 +132,8 @@ export type KnownTable =
   | "session_tokens"
   | "offline_commands";
 
+// ── Table accessor ────────────────────────────────────────────────────────────────
+
 class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
   private key: string;
 
@@ -48,7 +143,7 @@ class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
 
   async getAll(): Promise<T[]> {
     try {
-      const raw = await AsyncStorage.getItem(this.key);
+      const raw = await kvGet(this.key);
       if (!raw) return [];
       const parsed = JSON.parse(raw) as T[];
       return Array.isArray(parsed) ? parsed : [];
@@ -68,7 +163,7 @@ class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
       const all = await this.getAll();
       const idx = all.findIndex(r => r.id === record.id);
       if (idx >= 0) all[idx] = record; else all.push(record);
-      await AsyncStorage.setItem(this.key, JSON.stringify(all));
+      await kvSet(this.key, JSON.stringify(all));
     } catch (err) {
       console.error(`[DatabaseEngine] upsert(${this.name}) failed:`, err);
     }
@@ -78,7 +173,7 @@ class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
     try {
       const all = await this.getAll();
       const filtered = all.filter(r => r.id !== id);
-      await AsyncStorage.setItem(this.key, JSON.stringify(filtered));
+      await kvSet(this.key, JSON.stringify(filtered));
     } catch (err) {
       console.error(`[DatabaseEngine] delete(${this.name}) failed:`, err);
     }
@@ -86,7 +181,7 @@ class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
 
   async clear(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(this.key);
+      await kvRemove(this.key);
     } catch (err) {
       console.error(`[DatabaseEngine] clear(${this.name}) failed:`, err);
     }
@@ -97,11 +192,13 @@ class TableAccessorImpl<T extends TableRecord> implements TableAccessor<T> {
   }
 }
 
+// ── DatabaseEngine ────────────────────────────────────────────────────────────────
+
 export class DatabaseEngine implements IEngine {
   readonly id: CoreEngineId = "database_engine";
   readonly name = "Local Database Engine";
-  readonly version = "1.0.0";
-  readonly capabilities = ["persistent-storage", "typed-tables", "kv-store", "migration"];
+  readonly version = "2.0.0";
+  readonly capabilities = ["persistent-storage", "typed-tables", "kv-store", "migration", "sqlite"];
   readonly dependencies: CoreEngineId[] = [];
   readonly optional = false;
 
@@ -121,6 +218,8 @@ export class DatabaseEngine implements IEngine {
     if (this._status === "running") return;
     this._status = "booting";
     try {
+      // Initialise SQLite (no-op on web)
+      await getSQLiteDB();
       await this._runMigrations();
       this._heartbeatTimer = setInterval(() => { this._lastHeartbeat = new Date(); }, 5_000);
       this._startedAt = new Date();
@@ -168,7 +267,7 @@ export class DatabaseEngine implements IEngine {
   /** Simple key-value get with safe default. */
   async get<T>(key: string, defaultValue: T): Promise<T> {
     try {
-      const raw = await AsyncStorage.getItem(`${NS}:kv:${key}`);
+      const raw = await kvGet(`${NS}:kv:${key}`);
       if (raw === null) return defaultValue;
       return JSON.parse(raw) as T;
     } catch {
@@ -179,7 +278,7 @@ export class DatabaseEngine implements IEngine {
   /** Simple key-value set. */
   async set<T>(key: string, value: T): Promise<void> {
     try {
-      await AsyncStorage.setItem(`${NS}:kv:${key}`, JSON.stringify(value));
+      await kvSet(`${NS}:kv:${key}`, JSON.stringify(value));
     } catch (err) {
       this._errorCount++;
       this._lastError = String(err);
@@ -190,7 +289,7 @@ export class DatabaseEngine implements IEngine {
   /** Delete a key-value entry. */
   async remove(key: string): Promise<void> {
     try {
-      await AsyncStorage.removeItem(`${NS}:kv:${key}`);
+      await kvRemove(`${NS}:kv:${key}`);
     } catch (err) {
       console.warn(`[DatabaseEngine] remove(${key}) failed:`, err);
     }
@@ -199,9 +298,8 @@ export class DatabaseEngine implements IEngine {
   /** Wipe all data managed by this engine. Use with caution. */
   async clearAll(): Promise<void> {
     try {
-      const keys = await AsyncStorage.getAllKeys();
-      const ours = keys.filter(k => k.startsWith(NS));
-      await AsyncStorage.multiRemove(ours);
+      const keys = await kvGetAllKeys(NS);
+      await kvMultiRemove(keys);
     } catch (err) {
       console.error("[DatabaseEngine] clearAll failed:", err);
     }
@@ -212,7 +310,6 @@ export class DatabaseEngine implements IEngine {
   private async _runMigrations(): Promise<void> {
     const currentVersion = await this.get<number>("schema_version", 0);
     if (currentVersion >= SCHEMA_VERSION) return;
-    // v0 → v1: initialize all known tables (no-op for fresh installs)
     await this.set("schema_version", SCHEMA_VERSION);
     console.log(`[DatabaseEngine] migrated schema v${currentVersion} → v${SCHEMA_VERSION}`);
   }

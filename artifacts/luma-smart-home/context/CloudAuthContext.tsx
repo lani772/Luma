@@ -6,7 +6,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { CloudAPI, type CloudSyncData, type CloudUser } from "@/services/cloud-api";
+import { CloudAPI, initDemoMode, type CloudSyncData, type CloudUser } from "@/services/cloud-api";
 
 // ── Context shape ───────────────────────────────────────────────────────────────
 
@@ -57,6 +57,9 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // Restore demo-mode flag before loading user
+        await initDemoMode();
+
         const [storedUser, storedUsername, cached] = await Promise.all([
           CloudAPI.getStoredUser(),
           CloudAPI.getStoredUsername(),
@@ -113,9 +116,13 @@ export function CloudAuthProvider({ children }: { children: React.ReactNode }) {
 
     // Merge stored username (from a previous register on this device)
     const storedUsername = await CloudAPI.getStoredUsername();
-    const mergedUser = { ...auth.user, username: auth.user.username ?? storedUsername ?? undefined };
+    const effectiveUsername = auth.user.username ?? storedUsername ?? undefined;
+    const mergedUser = { ...auth.user, username: effectiveUsername };
     await _applyUser(mergedUser);
-    setUsername(storedUsername);
+    setUsername(effectiveUsername ?? null);
+
+    // Persist username if we have one
+    if (effectiveUsername) await CloudAPI.storeUsername(effectiveUsername);
 
     // Background sync — don't block navigation
     CloudAPI.syncAllData()

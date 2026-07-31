@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { C } from "@/constants/colors";
 import { useCloudAuth } from "@/context/CloudAuthContext";
+import { DEMO_EMAIL, DEMO_PASSWORD } from "@/services/demo-data";
 
 type Mode = "signin" | "signup";
 
@@ -91,6 +92,15 @@ export default function LoginScreen() {
   // Sign-in fields
   const [identifier, setIdentifier] = useState("");
   const [siPass, setSiPass]         = useState("");
+
+  // Fill demo credentials and submit
+  const fillDemo = () => {
+    setMode("signin");
+    setIdentifier(DEMO_EMAIL);
+    setSiPass(DEMO_PASSWORD);
+    setSubmitted(false);
+    setGlobalErr(null);
+  };
   const [showSiPass, setShowSiPass] = useState(false);
 
   // Sign-up fields
@@ -186,6 +196,18 @@ export default function LoginScreen() {
           <Text style={styles.brandTitle}>LUMA</Text>
           <Text style={styles.brandSub}>Smart Home Platform</Text>
         </View>
+
+        {/* Demo banner */}
+        <TouchableOpacity style={styles.demoBanner} onPress={fillDemo} activeOpacity={0.82}>
+          <View style={styles.demoBadge}>
+            <Text style={styles.demoBadgeTxt}>DEMO</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.demoTitle}>Try the demo</Text>
+            <Text style={styles.demoSub}>{DEMO_EMAIL} · {DEMO_PASSWORD}</Text>
+          </View>
+          <Feather name="arrow-right-circle" size={18} color={C.accentL} />
+        </TouchableOpacity>
 
         {/* Mode tabs */}
         <View style={styles.tabRow}>
@@ -416,4 +438,9 @@ const styles = StyleSheet.create({
   strengthLabel:  { fontSize: 11, fontFamily: "Inter_500Medium", marginLeft: 4 },
   hint:           { fontSize: 11, color: C.mute, fontFamily: "Inter_400Regular" },
   legalTxt:       { fontSize: 11, color: C.mute, textAlign: "center", lineHeight: 16, fontFamily: "Inter_400Regular" },
+  demoBanner:     { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: C.accent + "18", borderRadius: 14, borderWidth: 1.5, borderColor: C.accent + "40", padding: 14, marginBottom: 20 },
+  demoBadge:      { backgroundColor: C.accent, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  demoBadgeTxt:   { fontSize: 10, fontWeight: "700" as const, color: C.txt, letterSpacing: 1, fontFamily: "Inter_700Bold" },
+  demoTitle:      { fontSize: 14, fontWeight: "600" as const, color: C.txt, fontFamily: "Inter_600SemiBold" },
+  demoSub:        { fontSize: 11, color: C.sec, fontFamily: "Inter_400Regular", marginTop: 2 },
 });
