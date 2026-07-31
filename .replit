@@ -3,6 +3,8 @@ modules = ["nodejs-20", "web", "go-1.21", "python-3.12", "swift-5.8"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["pnpm", "--filter", "@workspace/luma-smart-home", "run", "serve"]
+build = ["pnpm", "--filter", "@workspace/luma-smart-home", "run", "build"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
