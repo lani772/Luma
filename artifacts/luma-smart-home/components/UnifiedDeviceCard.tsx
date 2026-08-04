@@ -158,7 +158,12 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
                 <View style={[s.stateDot, { backgroundColor: lamp.on ? C.on : C.off }]} />
                 <Text style={[s.stateText, { color: lamp.on ? C.on : C.off }]}>{lamp.on ? "ON" : "OFF"}</Text>
               </View>
-              <LumaToggle value={lamp.on} onToggle={handleToggle} disabled={!lamp.online} />
+              <LumaToggle
+                value={lamp.on}
+                onToggle={handleToggle}
+                disabled={!lamp.online}
+                accessibilityLabel={`Toggle ${lamp.name}`}
+              />
             </View>
           </View>
 
@@ -202,6 +207,27 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
               style={s.sliderTrack}
               onLayout={e => { sliderWidth.current = e.nativeEvent.layout.width; }}
               {...(lamp.online ? panResponder.panHandlers : {})}
+              accessibilityLabel={`Brightness for ${lamp.name}`}
+              accessibilityRole="adjustable"
+              accessibilityValue={{ min: 1, max: 100, now: brightness }}
+              accessibilityActions={[
+                { name: "increment", label: "Increase brightness" },
+                { name: "decrement", label: "Decrease brightness" },
+              ]}
+              onAccessibilityAction={(event) => {
+                if (!lamp.online) return;
+                let nextBrt = brightness;
+                if (event.nativeEvent.actionName === "increment") {
+                  nextBrt = Math.min(100, brightness + 10);
+                } else if (event.nativeEvent.actionName === "decrement") {
+                  nextBrt = Math.max(1, brightness - 10);
+                }
+                if (nextBrt !== brightness) {
+                  setBrightness(nextBrt);
+                  onUpdate(lamp.id, { brightness: nextBrt, lastCommand: `Brightness ${nextBrt}%`, lastUpdate: Date.now() });
+                  if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+              }}
             >
               <View style={[s.sliderFill, { width: brtFill as any, backgroundColor: lamp.on ? lamp.rgb : C.mute + "60" }]} />
               <View style={[s.sliderThumb, { left: `${brightness}%` as any, marginLeft: -8, backgroundColor: lamp.on ? lamp.rgb : C.mute }]} />
@@ -215,6 +241,9 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
             disabled={!lamp.online}
             activeOpacity={0.8}
             style={[s.powerBtn, { backgroundColor: lamp.on ? C.on : "#7f1d1d", opacity: lamp.online ? 1 : 0.4 }]}
+            accessibilityRole="button"
+            accessibilityLabel={lamp.on ? `Turn off ${lamp.name}` : `Turn on ${lamp.name}`}
+            accessibilityState={{ disabled: !lamp.online, checked: lamp.on }}
           >
             <Feather name="power" size={15} color="#fff" />
             <Text style={s.powerBtnText}>{lamp.on ? "ON — TAP TO TURN OFF" : "OFF — TAP TO TURN ON"}</Text>
@@ -225,6 +254,8 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
             <TouchableOpacity
               style={[s.actionBtn, lamp.activeTimer && { borderColor: C.warn + "40", backgroundColor: C.warn + "12" }]}
               onPress={() => setTimerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={lamp.activeTimer ? `Timer active: ${countdown}. Tap to change timer for ${lamp.name}` : `Set timer for ${lamp.name}`}
             >
               <Feather name="clock" size={13} color={lamp.activeTimer ? "#fde68a" : C.sec} />
               <Text style={[s.actionText, lamp.activeTimer && { color: "#fde68a" }]}>Timer</Text>
@@ -232,11 +263,18 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
             <TouchableOpacity
               style={[s.actionBtn, lamp.schedules.length > 0 && { borderColor: C.accent + "40", backgroundColor: C.accent + "12" }]}
               onPress={() => router.push(`/device/${lamp.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open schedules for ${lamp.name}`}
             >
               <Feather name="calendar" size={13} color={lamp.schedules.length > 0 ? "#93c5fd" : C.sec} />
               <Text style={[s.actionText, lamp.schedules.length > 0 && { color: "#93c5fd" }]}>Schedule</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.actionBtn} onPress={() => router.push(`/device/${lamp.id}`)}>
+            <TouchableOpacity
+              style={s.actionBtn}
+              onPress={() => router.push(`/device/${lamp.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open advanced settings for ${lamp.name}`}
+            >
               <Feather name="sliders" size={13} color={C.accentL} />
               <Text style={[s.actionText, { color: C.accentL }]}>Advanced</Text>
             </TouchableOpacity>
@@ -314,7 +352,12 @@ function GPIOCard({ device, mc, onToggle }: GPIOMode) {
               <View style={[s.stateDot, { backgroundColor: device.on ? C.on : C.off }]} />
               <Text style={[s.stateText, { color: device.on ? C.on : C.off }]}>{device.on ? "ON" : "OFF"}</Text>
             </View>
-            <LumaToggle value={device.on} onToggle={handleToggle} disabled={!online} />
+            <LumaToggle
+              value={device.on}
+              onToggle={handleToggle}
+              disabled={!online}
+              accessibilityLabel={`Toggle ${device.name}`}
+            />
           </View>
         </View>
 
@@ -353,7 +396,12 @@ function GPIOCard({ device, mc, onToggle }: GPIOMode) {
         {/* ── Relay state bar (identical position to brightness slider) ── */}
         <View style={s.sliderRow}>
           <Feather name="zap" size={14} color={device.on && online ? accent : C.mute} style={{ opacity: online ? 1 : 0.4 }} />
-          <View style={s.sliderTrack}>
+          <View
+            style={s.sliderTrack}
+            accessibilityLabel={`Relay state for ${device.name}`}
+            accessibilityRole="progressbar"
+            accessibilityValue={{ text: device.on && online ? "ON" : "OFF" }}
+          >
             <View style={[s.sliderFill, {
               width: (device.on && online ? "100%" : "0%") as any,
               backgroundColor: accent,
@@ -375,6 +423,9 @@ function GPIOCard({ device, mc, onToggle }: GPIOMode) {
           disabled={!online}
           activeOpacity={0.8}
           style={[s.powerBtn, { backgroundColor: device.on ? C.on : "#7f1d1d", opacity: online ? 1 : 0.4 }]}
+          accessibilityRole="button"
+          accessibilityLabel={device.on ? `Turn off ${device.name}` : `Turn on ${device.name}`}
+          accessibilityState={{ disabled: !online, checked: device.on }}
         >
           <Feather name="power" size={15} color="#fff" />
           <Text style={s.powerBtnText}>{device.on ? "ON — TAP TO TURN OFF" : "OFF — TAP TO TURN ON"}</Text>
@@ -383,17 +434,33 @@ function GPIOCard({ device, mc, onToggle }: GPIOMode) {
         {/* ── Action buttons ─────────────────────────────────────── */}
         <View style={s.actionRow}>
           {/* Timer — not yet available for GPIO relays */}
-          <TouchableOpacity style={[s.actionBtn, { opacity: 0.38 }]} disabled>
+          <TouchableOpacity
+            style={[s.actionBtn, { opacity: 0.38 }]}
+            disabled
+            accessibilityRole="button"
+            accessibilityLabel="Timer not supported for GPIO devices"
+            accessibilityState={{ disabled: true }}
+          >
             <Feather name="clock" size={13} color={C.sec} />
             <Text style={s.actionText}>Timer</Text>
           </TouchableOpacity>
           {/* Schedule — opens device detail */}
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push(detailRoute)}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push(detailRoute)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open schedules for ${device.name}`}
+          >
             <Feather name="calendar" size={13} color={C.sec} />
             <Text style={s.actionText}>Schedule</Text>
           </TouchableOpacity>
           {/* Advanced — opens device detail */}
-          <TouchableOpacity style={s.actionBtn} onPress={() => router.push(detailRoute)}>
+          <TouchableOpacity
+            style={s.actionBtn}
+            onPress={() => router.push(detailRoute)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open advanced settings for ${device.name}`}
+          >
             <Feather name="sliders" size={13} color={C.accentL} />
             <Text style={[s.actionText, { color: C.accentL }]}>Advanced</Text>
           </TouchableOpacity>
