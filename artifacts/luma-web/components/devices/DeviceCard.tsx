@@ -29,6 +29,8 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
               onToggle?.(device.id, !device.on);
             }}
             className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
+            aria-label={device.on ? `Turn ${device.name} off` : `Turn ${device.name} on`}
+            title={device.on ? `Turn ${device.name} off` : `Turn ${device.name} on`}
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
