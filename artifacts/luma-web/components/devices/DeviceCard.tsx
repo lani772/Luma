@@ -12,11 +12,8 @@ interface DeviceCardProps {
 }
 
 export function DeviceCard({ device, onToggle }: DeviceCardProps) {
-  const statusColor = device.on ? COLORS.onState : COLORS.textMuted;
+  const statusColor = device.on ? COLORS.onState : COLORS.muted;
   const status = getDeviceStatus(device.online, device.on);
-  const toggleActionLabel = device.on
-    ? `Turn off ${device.name}`
-    : `Turn on ${device.name}`;
 
   return (
     <Link href={`/devices/${device.id}`}>
@@ -27,19 +24,16 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <p className="text-xs text-muted mt-1">{device.room}</p>
           </div>
           <button
-            type="button"
-            aria-label={toggleActionLabel}
-            title={toggleActionLabel}
             onClick={(e) => {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
             }}
-            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue"
+            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
             ) : (
-              <LightbulbOff size={18} style={{ color: COLORS.textMuted }} />
+              <LightbulbOff size={18} style={{ color: COLORS.muted }} />
             )}
           </button>
         </div>
@@ -50,7 +44,7 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                backgroundColor: device.online ? COLORS.onState : COLORS.textMuted,
+                backgroundColor: device.online ? COLORS.onState : COLORS.muted,
               }}
             />
             <span className="text-xs font-medium" style={{ color: statusColor }}>
