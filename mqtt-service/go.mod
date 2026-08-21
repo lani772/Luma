@@ -1,6 +1,6 @@
 module mqtt-service
 
-go 1.25.0
+go 1.20
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
