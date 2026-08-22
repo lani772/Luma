@@ -26,9 +26,26 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
           <button
             onClick={(e) => {
               e.preventDefault();
-              onToggle?.(device.id, !device.on);
+              if (device.online) {
+                onToggle?.(device.id, !device.on);
+              }
             }}
-            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
+            disabled={!device.online}
+            aria-label={
+              !device.online
+                ? `${device.name} is offline`
+                : device.on
+                ? `Turn off ${device.name}`
+                : `Turn on ${device.name}`
+            }
+            title={
+              !device.online
+                ? `${device.name} is offline`
+                : device.on
+                ? `Turn off ${device.name}`
+                : `Turn on ${device.name}`
+            }
+            className="p-2 rounded-lg hover:bg-card-hover focus-visible:ring-2 focus-visible:ring-primary-blue focus:outline-none transition-colors ml-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
