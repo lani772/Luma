@@ -59,8 +59,9 @@ export function UserCard({
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
-              title="Edit user"
+              aria-label={`Edit ${fullName}`}
+              title={`Edit ${fullName}`}
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
             </button>
@@ -68,8 +69,9 @@ export function UserCard({
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-              title="Delete user"
+              aria-label={`Delete ${fullName}`}
+              title={`Delete ${fullName}`}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-400" />
             </button>

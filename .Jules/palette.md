@@ -1,0 +1,3 @@
+## 2025-05-18 - Contextual ARIA Labels on Icon-Only Action Buttons in Cards
+**Learning:** Icon-only action buttons inside card components (e.g. device power toggles, edit user, delete user) often lack accessible names for screen readers and visible focus indicators for keyboard navigation. Static labels like "Edit user" or generic icons without `aria-label` do not convey which entity is being acted upon when navigating by screen reader.
+**Action:** Always include entity-specific context in `aria-label` and `title` (e.g. `aria-label={`Turn off ${device.name}`}`) and apply `focus-visible:ring-2` styling for keyboard accessibility on all icon-only buttons.
