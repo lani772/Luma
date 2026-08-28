@@ -28,6 +28,8 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
             }}
+            aria-label={device.on ? `Turn off ${device.name}` : `Turn on ${device.name}`}
+            title={device.on ? `Turn off ${device.name}` : `Turn on ${device.name}`}
             className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
           >
             {device.on ? (
