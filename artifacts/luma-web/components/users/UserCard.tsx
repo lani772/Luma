@@ -1,13 +1,13 @@
-import { Shield, Trash2, Edit2, Mail, Clock } from 'lucide-react';
-import { COLORS } from '@/lib/colors';
-import { generateInitials } from '@/lib/utils';
+import { Shield, Trash2, Edit2, Mail, Clock } from "lucide-react";
+import { COLORS } from "@/lib/colors";
+import { generateInitials } from "@/lib/utils";
 
 interface UserCardProps {
   id: string;
   fullName: string;
   email: string;
-  role: 'owner' | 'admin' | 'member' | 'guest';
-  status: 'active' | 'inactive';
+  role: "owner" | "admin" | "member" | "guest";
+  status: "active" | "inactive";
   lastLogin?: string;
   joinedDate?: string;
   onEdit?: () => void;
@@ -15,15 +15,15 @@ interface UserCardProps {
 }
 
 const roleStyles = {
-  owner: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  admin: 'bg-red-500/10 text-red-400 border-red-500/20',
-  member: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  guest: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+  owner: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  admin: "bg-red-500/10 text-red-400 border-red-500/20",
+  member: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  guest: "bg-slate-500/10 text-slate-400 border-slate-500/20",
 };
 
 const statusStyles = {
-  active: 'bg-green-500/10 text-green-400',
-  inactive: 'bg-slate-500/10 text-slate-400',
+  active: "bg-green-500/10 text-green-400",
+  inactive: "bg-slate-500/10 text-slate-400",
 };
 
 export function UserCard({
@@ -59,7 +59,8 @@ export function UserCard({
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
+              aria-label={`Edit ${fullName}`}
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               title="Edit user"
             >
               <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
@@ -68,7 +69,8 @@ export function UserCard({
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+              aria-label={`Delete ${fullName}`}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               title="Delete user"
             >
               <Trash2 className="w-4 h-4 text-slate-400 hover:text-red-400" />
