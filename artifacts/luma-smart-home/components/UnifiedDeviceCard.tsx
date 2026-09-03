@@ -158,7 +158,7 @@ function MQTTCard({ lamp, onUpdate }: MQTTMode) {
                 <View style={[s.stateDot, { backgroundColor: lamp.on ? C.on : C.off }]} />
                 <Text style={[s.stateText, { color: lamp.on ? C.on : C.off }]}>{lamp.on ? "ON" : "OFF"}</Text>
               </View>
-              <LumaToggle value={lamp.on} onToggle={handleToggle} disabled={!lamp.online} />
+              <LumaToggle value={lamp.on} onToggle={handleToggle} disabled={!lamp.online} accessibilityLabel={`Toggle ${lamp.name}`} />
             </View>
           </View>
 
@@ -314,7 +314,7 @@ function GPIOCard({ device, mc, onToggle }: GPIOMode) {
               <View style={[s.stateDot, { backgroundColor: device.on ? C.on : C.off }]} />
               <Text style={[s.stateText, { color: device.on ? C.on : C.off }]}>{device.on ? "ON" : "OFF"}</Text>
             </View>
-            <LumaToggle value={device.on} onToggle={handleToggle} disabled={!online} />
+            <LumaToggle value={device.on} onToggle={handleToggle} disabled={!online} accessibilityLabel={`Toggle ${device.name}`} />
           </View>
         </View>
 

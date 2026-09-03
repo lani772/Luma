@@ -121,7 +121,7 @@ export default function DeviceCard({ lamp, onUpdate }: DeviceCardProps) {
                 <View style={[styles.stateDot, { backgroundColor: lamp.on ? C.on : C.off }]} />
                 <Text style={[styles.stateText, { color: lamp.on ? C.on : C.off }]}>{lamp.on ? "ON" : "OFF"}</Text>
               </View>
-              <LumaToggle value={lamp.on} onToggle={() => handleToggle()} disabled={!lamp.online} />
+              <LumaToggle value={lamp.on} onToggle={() => handleToggle()} disabled={!lamp.online} accessibilityLabel={`Toggle ${lamp.name}`} />
             </View>
           </View>
 
