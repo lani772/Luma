@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { Lamp } from "@/lib/types";
-import { COLORS } from "@/lib/colors";
-import { formatPower, getDeviceStatus } from "@/lib/utils";
-import { Wifi, WifiOff, Lightbulb, LightbulbOff } from "lucide-react";
-import Link from "next/link";
+import { Lamp } from '@/lib/types';
+import { COLORS } from '@/lib/colors';
+import { formatPower, getDeviceStatus } from '@/lib/utils';
+import { Wifi, WifiOff, Lightbulb, LightbulbOff } from 'lucide-react';
+import Link from 'next/link';
 
 interface DeviceCardProps {
   device: Lamp;
@@ -24,14 +24,11 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <p className="text-xs text-muted mt-1">{device.room}</p>
           </div>
           <button
-            type="button"
-            aria-label={`Turn ${device.name} ${device.on ? "off" : "on"}`}
-            title={`Turn ${device.on ? "off" : "on"}`}
             onClick={(e) => {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
             }}
-            className="p-2 rounded-lg hover:bg-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue transition-colors ml-2"
+            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
@@ -50,10 +47,7 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
                 backgroundColor: device.online ? COLORS.onState : COLORS.muted,
               }}
             />
-            <span
-              className="text-xs font-medium"
-              style={{ color: statusColor }}
-            >
+            <span className="text-xs font-medium" style={{ color: statusColor }}>
               {status}
             </span>
             {!device.online && <WifiOff size={14} className="text-muted" />}
