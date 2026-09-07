@@ -1,0 +1,3 @@
+## 2025-05-10 - React Native Pressable Accessibility
+**Learning:** Custom toggle switches implemented with Pressable in React Native / Expo Web must explicitly provide both React Native accessibility props (`accessibilityRole="switch"`, `accessibilityState={{ checked, disabled }}`, `accessibilityLabel`) and Web ARIA attributes (`aria-checked`, `aria-disabled`, `aria-label`) so screen readers across mobile native and web platforms can identify their switch status and state correctly.
+**Action:** Always include accessibilityRole="switch", accessibilityState, accessibilityLabel, and aria-* attributes on Pressable components functioning as custom toggles or switches.
