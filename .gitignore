@@ -7,6 +7,9 @@ out-tsc
 *.tsbuildinfo
 .expo
 .expo-shared
+.next/
+.turbo/
+build/
 
 # dependencies
 node_modules
