@@ -32,10 +32,11 @@ export function DeviceFilter({
     <div className="glass rounded-xl p-4 space-y-4">
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} aria-hidden="true" />
         <input
           type="text"
           placeholder="Search devices..."
+          aria-label="Search devices"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           className="input pl-10"
@@ -45,12 +46,13 @@ export function DeviceFilter({
       {/* Status Filter */}
       <div>
         <label className="text-sm font-medium mb-2 block">Status</label>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap" role="group" aria-label="Filter devices by status">
           {statusOptions.map((option) => (
             <button
               key={option.value}
               onClick={() => onStatusChange(option.value as any)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+              aria-pressed={statusFilter === option.value}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue ${
                 statusFilter === option.value
                   ? 'bg-primary-blue text-white'
                   : 'bg-card-hover text-muted hover:text-foreground'
@@ -65,11 +67,12 @@ export function DeviceFilter({
       {/* Room Filter */}
       {rooms.length > 0 && (
         <div>
-          <label className="text-sm font-medium mb-2 block">Room</label>
+          <label htmlFor="room-filter-select" className="text-sm font-medium mb-2 block">Room</label>
           <select
+            id="room-filter-select"
             value={roomFilter}
             onChange={(e) => onRoomChange(e.target.value)}
-            className="input"
+            className="input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue"
           >
             <option value="all">All Rooms</option>
             {rooms.map((room) => (
