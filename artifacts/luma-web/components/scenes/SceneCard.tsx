@@ -46,22 +46,25 @@ export function SceneCard({
     >
       <div className="flex items-start justify-between mb-3">
         <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+          <Icon className="w-6 h-6 text-white" aria-hidden="true" />
         </div>
         <div className="flex gap-1">
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
               title="Edit scene"
+              aria-label={`Edit ${name} scene`}
             >
-              <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
+              <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" aria-hidden="true" />
             </button>
           )}
           <button
             onClick={handleActivate}
             disabled={isLoading}
-            className={`p-1.5 rounded-lg transition-all ${
+            aria-busy={isLoading}
+            aria-label={isActive ? `${name} scene active` : `Activate ${name} scene`}
+            className={`p-1.5 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
               isActive
                 ? 'bg-green-500/20 text-green-400'
                 : 'hover:bg-blue-500/20 text-slate-400 hover:text-blue-400'
@@ -71,6 +74,7 @@ export function SceneCard({
             <Play
               className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
               fill="currentColor"
+              aria-hidden="true"
             />
           </button>
         </div>

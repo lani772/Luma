@@ -1,0 +1,3 @@
+## 2025-05-18 - Accessibility and Focus Indicators for Card Icon Action Buttons
+**Learning:** Icon-only action buttons inside card components (such as scene activation and edit controls) often lack descriptive ARIA labels, `aria-busy` state communication during async operations, hidden decorative icons, and visible keyboard focus indicators (`focus-visible`).
+**Action:** Always provide contextual `aria-label` (e.g. `Activate ${name} scene`), `aria-busy={isLoading}`, `aria-hidden="true"` on inner icons, and focus rings (`focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:outline-none`) for icon-only action buttons.
