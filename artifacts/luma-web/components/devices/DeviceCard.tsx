@@ -24,6 +24,9 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <p className="text-xs text-muted mt-1">{device.room}</p>
           </div>
           <button
+            aria-label={`Toggle ${device.name}`}
+            aria-pressed={device.on}
+            title={`Turn ${device.on ? 'off' : 'on'} ${device.name}`}
             onClick={(e) => {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
