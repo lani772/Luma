@@ -30,6 +30,7 @@ export const COLORS = {
   textPrimary: '#F5F5F5',
   textSecondary: '#A0A5AE',
   textMuted: '#8B8F99',
+  muted: '#8B8F99',
   textInverse: '#0A0E1A',
 };
 
