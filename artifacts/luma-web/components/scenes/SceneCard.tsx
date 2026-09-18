@@ -52,7 +52,8 @@ export function SceneCard({
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
+              aria-label={`Edit ${name} scene`}
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue"
               title="Edit scene"
             >
               <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
@@ -61,7 +62,9 @@ export function SceneCard({
           <button
             onClick={handleActivate}
             disabled={isLoading}
-            className={`p-1.5 rounded-lg transition-all ${
+            aria-label={isActive ? `Scene ${name} active` : `Activate ${name} scene`}
+            aria-pressed={isActive}
+            className={`p-1.5 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue ${
               isActive
                 ? 'bg-green-500/20 text-green-400'
                 : 'hover:bg-blue-500/20 text-slate-400 hover:text-blue-400'
