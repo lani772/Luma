@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { Lamp } from '@/lib/types';
-import { COLORS } from '@/lib/colors';
-import { formatPower, getDeviceStatus } from '@/lib/utils';
-import { Wifi, WifiOff, Lightbulb, LightbulbOff } from 'lucide-react';
-import Link from 'next/link';
+import { Lamp } from "@/lib/types";
+import { COLORS } from "@/lib/colors";
+import { formatPower, getDeviceStatus } from "@/lib/utils";
+import { Wifi, WifiOff, Lightbulb, LightbulbOff } from "lucide-react";
+import Link from "next/link";
 
 interface DeviceCardProps {
   device: Lamp;
@@ -12,7 +12,7 @@ interface DeviceCardProps {
 }
 
 export function DeviceCard({ device, onToggle }: DeviceCardProps) {
-  const statusColor = device.on ? COLORS.onState : COLORS.muted;
+  const statusColor = device.on ? COLORS.onState : COLORS.textMuted;
   const status = getDeviceStatus(device.online, device.on);
 
   return (
@@ -26,14 +26,25 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
           <button
             onClick={(e) => {
               e.preventDefault();
-              onToggle?.(device.id, !device.on);
+              if (device.online) {
+                onToggle?.(device.id, !device.on);
+              }
             }}
-            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
+            disabled={!device.online}
+            aria-label={`Turn ${device.name} ${device.on ? "off" : "on"}`}
+            aria-pressed={device.on}
+            aria-disabled={!device.online}
+            title={
+              !device.online
+                ? `${device.name} is offline`
+                : `Turn ${device.name} ${device.on ? "off" : "on"}`
+            }
+            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
             ) : (
-              <LightbulbOff size={18} style={{ color: COLORS.muted }} />
+              <LightbulbOff size={18} style={{ color: COLORS.textMuted }} />
             )}
           </button>
         </div>
@@ -44,10 +55,17 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                backgroundColor: device.online ? COLORS.onState : COLORS.muted,
+                backgroundColor: device.online
+                  ? device.on
+                    ? COLORS.onState
+                    : COLORS.textMuted
+                  : COLORS.offState,
               }}
             />
-            <span className="text-xs font-medium" style={{ color: statusColor }}>
+            <span
+              className="text-xs font-medium"
+              style={{ color: statusColor }}
+            >
               {status}
             </span>
             {!device.online && <WifiOff size={14} className="text-muted" />}
@@ -65,7 +83,10 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
         <div className="pt-3 border-t border-border">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted">Signal</span>
-            <div className="flex gap-1">
+            <div
+              className="flex gap-1"
+              aria-label={`Signal strength ${device.health.signalQuality}%`}
+            >
               {[0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}

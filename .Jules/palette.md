@@ -1,0 +1,3 @@
+## 2025-05-18 - Accessible Quick-Action Icon Toggles on Link Cards
+**Learning:** In card components wrapping primary links, embedded quick-action icon buttons (like device power toggles) require explicit `aria-label`, `aria-pressed`, `aria-disabled`, `title` tooltips, and `focus-visible` focus rings. When the target device is offline, setting `disabled` and `aria-disabled` along with an informative tooltip ("<Device> is offline") prevents confusing interactions for screen reader and keyboard users.
+**Action:** Whenever implementing quick-action toggle buttons inside card links, always provide dynamic ARIA pressed states, clear hover tooltips, explicit keyboard focus rings, and disable interactions when the device is offline.
