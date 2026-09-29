@@ -1,0 +1,3 @@
+## 2025-02-21 - Icon-only Buttons inside Interactive Compound Cards
+**Learning:** Icon-only action buttons inside compound components (e.g. power toggle inside a clickable device card or edit/delete inside user cards) lack natural context for screen readers if missing explicit `aria-label`s. Standard HTML `title` alone is insufficient for screen reader navigation context.
+**Action:** Always provide explicit, context-aware `aria-label`s (e.g., `aria-label="Turn Light Bulb off"`, `aria-label="Edit Scene Name"`) and `focus-visible:ring-2` focus rings on all icon-only control buttons embedded within cards.
