@@ -54,6 +54,7 @@ export function SceneCard({
               onClick={onEdit}
               className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
               title="Edit scene"
+              aria-label={`Edit ${name} scene`}
             >
               <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
             </button>
@@ -67,6 +68,7 @@ export function SceneCard({
                 : 'hover:bg-blue-500/20 text-slate-400 hover:text-blue-400'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             title={isActive ? 'Scene active' : 'Activate scene'}
+            aria-label={isActive ? `Deactivate ${name} scene` : `Activate ${name} scene`}
           >
             <Play
               className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
