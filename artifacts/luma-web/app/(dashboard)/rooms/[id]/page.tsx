@@ -158,13 +158,37 @@ export default function RoomDetailPage() {
       <div>
         <h2 className="text-xl font-semibold text-slate-100 mb-4">Devices</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {room.devices.map((device) => (
-            <DeviceCard
-              key={device.id}
-              {...device}
-              onClick={() => router.push(`/devices/${device.id}`)}
-            />
-          ))}
+          {room.devices.map((device) => {
+            const lampDevice = {
+              id: device.id,
+              name: device.name,
+              room: device.room,
+              floor: '1st Floor',
+              deviceId: `DEV-${device.id}`,
+              mac: '00:11:22:33:44:55',
+              mqttStatus: 'connected' as const,
+              online: true,
+              lastSeen: Date.now(),
+              firmware: 'v1.0.0',
+              on: device.status === 'on',
+              brightness: 'brightness' in device ? (device as any).brightness : 100,
+              colorTemp: 4000,
+              rgb: '#FFFFFF',
+              voltage: 120,
+              current: 0.1,
+              power: 12,
+              energyToday: 0.5,
+              costToday: 0.08,
+              energyMonth: 15,
+              costMonth: 2.4,
+              schedules: [],
+              activeTimer: null,
+              lastCommand: 'None',
+              lastUpdate: Date.now(),
+              health: { rssi: -60, signalQuality: 80, ip: '192.168.1.100', uptime: '10d', restartCount: 0, cpu: 20, memory: 30 },
+            };
+            return <DeviceCard key={device.id} device={lampDevice} />;
+          })}
         </div>
       </div>
 

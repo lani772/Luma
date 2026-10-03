@@ -35,17 +35,18 @@ export default function DeviceDetailScreen() {
     );
   }
 
-  const activities = lampActivity[lamp.id] || [];
-  const automations = lampAutomations[lamp.id] || [];
+  const activeLamp = lamp;
+  const activities = lampActivity[activeLamp.id] || [];
+  const automations = lampAutomations[activeLamp.id] || [];
 
   function handleTimerSet(ms: number, action: "on" | "off") {
-    updateLamp(lamp.id, { activeTimer: { action, expiresAt: Date.now() + ms, label: `${Math.round(ms / 60000)}m→${action.toUpperCase()}` }, lastCommand: `Timer set`, lastUpdate: Date.now() });
+    updateLamp(activeLamp.id, { activeTimer: { action, expiresAt: Date.now() + ms, label: `${Math.round(ms / 60000)}m→${action.toUpperCase()}` }, lastCommand: `Timer set`, lastUpdate: Date.now() });
     setTimerOpen(false);
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
   function handleClearTimer() {
-    updateLamp(lamp.id, { activeTimer: null, lastCommand: "Timer cleared", lastUpdate: Date.now() });
+    updateLamp(activeLamp.id, { activeTimer: null, lastCommand: "Timer cleared", lastUpdate: Date.now() });
   }
 
   return (
