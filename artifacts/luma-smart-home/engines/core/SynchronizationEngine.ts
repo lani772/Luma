@@ -160,10 +160,10 @@ export class SynchronizationEngine implements IEngine {
     };
   }
 
-  handleMessage(message: CoreMessage): void | Promise<void> {
+  async handleMessage(message: CoreMessage): Promise<void> {
     this._messagesReceived++;
     if (message.action === "ENQUEUE_OPERATION") {
-      return this.enqueue(
+      await this.enqueue(
         message.payload.kind as QueuedOperationKind,
         message.payload.deviceId as string,
         message.payload.payload,

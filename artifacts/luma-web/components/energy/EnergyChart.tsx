@@ -37,7 +37,7 @@ export function EnergyChart({ data, type = 'bar', height = 300 }: EnergyChartPro
               borderRadius: '8px',
             }}
             labelStyle={{ color: COLORS.foreground }}
-            formatter={(value) => `${value.toFixed(2)} kWh`}
+            formatter={(value: any) => `${Number(value).toFixed(2)} kWh`}
           />
           <Line
             type="monotone"
@@ -60,7 +60,7 @@ export function EnergyChart({ data, type = 'bar', height = 300 }: EnergyChartPro
               borderRadius: '8px',
             }}
             labelStyle={{ color: COLORS.foreground }}
-            formatter={(value) => `${value.toFixed(2)} kWh`}
+            formatter={(value: any) => `${Number(value).toFixed(2)} kWh`}
           />
           <Bar dataKey="value" fill={COLORS.accentTeal} radius={[8, 8, 0, 0]} />
         </BarChart>

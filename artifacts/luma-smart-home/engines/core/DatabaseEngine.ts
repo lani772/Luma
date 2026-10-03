@@ -105,7 +105,6 @@ async function kvMultiRemove(keys: string[]): Promise<void> {
 
 export interface TableRecord {
   id: string;
-  [key: string]: unknown;
 }
 
 export interface TableAccessor<T extends TableRecord> {
@@ -261,7 +260,7 @@ export class DatabaseEngine implements IEngine {
     if (!this._tables.has(name)) {
       this._tables.set(name, new TableAccessorImpl(name));
     }
-    return this._tables.get(name)! as TableAccessor<T>;
+    return this._tables.get(name)! as unknown as TableAccessor<T>;
   }
 
   /** Simple key-value get with safe default. */

@@ -22,7 +22,8 @@
     "zod": "^3.22.0",
     "zustand": "^4.4.0",
     "date-fns": "^2.30.0",
-    "clsx": "^2.0.0"
+    "clsx": "^2.0.0",
+    "tailwind-merge": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

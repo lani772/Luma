@@ -136,7 +136,7 @@ export class SecurityEngine implements IEngine {
     if (!stored) return false;
     const hash = await this.hashKey(presentedKey, deviceId);
     const fieldMap = { owner: "ownerKeyHash", admin: "adminKeyHash", registration: "registrationKeyHash" } as const;
-    return hash === (stored as Record<string, string>)[fieldMap[role]];
+    return hash === (stored as unknown as Record<string, string>)[fieldMap[role]];
   }
 
   /** Sign a command payload. Returns a SignedCommand envelope. */

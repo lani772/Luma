@@ -31,6 +31,8 @@ export const COLORS = {
   textSecondary: '#A0A5AE',
   textMuted: '#8B8F99',
   textInverse: '#0A0E1A',
+  muted: '#8B8F99',
+  foreground: '#F5F5F5',
 };
 
 export const SCENE_COLORS = {
