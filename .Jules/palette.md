@@ -1,0 +1,3 @@
+## 2025-05-18 - Accessible Icon-Only Toggle Buttons in Web Dashboard
+**Learning:** In Next.js/Tailwind web dashboards (`artifacts/luma-web`), icon-only action buttons (such as device light toggles and mobile menu buttons) lack explicit text node context. Without `aria-label`, `aria-pressed`/`aria-expanded`, and visible keyboard focus states (`focus-visible:ring-2`), screen readers and keyboard users cannot determine button state or function.
+**Action:** Always complement icon-only buttons in component cards and navigation headers with `aria-label`, state indicators (`aria-pressed` / `aria-expanded`), `title` tooltips, and `focus-visible:ring-2` outline styles.
