@@ -44,7 +44,11 @@ export function Sidebar() {
     <>
       {/* Mobile Toggle */}
       <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={isOpen}
+        aria-controls="sidebar-navigation"
         className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -60,6 +64,8 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
+        id="sidebar-navigation"
+        aria-label="Sidebar navigation"
         className={`fixed left-0 top-0 h-screen w-64 bg-card border-r border-border transform transition-transform duration-200 ease-out z-30 md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } md:relative`}
@@ -79,7 +85,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+          <nav aria-label="Main navigation" className="flex-1 overflow-y-auto p-4 space-y-2">
             {mainNav.map(item => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -155,6 +161,7 @@ export function Sidebar() {
             )}
 
             <button
+              type="button"
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-red-warn hover:bg-red-warn/10 transition-colors font-medium"
             >
