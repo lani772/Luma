@@ -1,0 +1,3 @@
+## 2025-05-18 - Icon-Only Interactive Buttons Accessibility
+**Learning:** In web dashboards like `luma-web`, icon-only buttons (such as quick toggle buttons on device cards and mobile navigation menu toggles) lack visible text labels and missing ARIA attributes (`aria-label`, `aria-pressed`, `aria-expanded`). Without these attributes, screen readers cannot announce the action or state of the control to visually impaired users.
+**Action:** Always provide explicit, context-aware `aria-label`, `aria-pressed`, `aria-expanded`, and native `title` attributes on icon-only buttons to ensure clear screen reader announcements and tooltip feedback on hover.
