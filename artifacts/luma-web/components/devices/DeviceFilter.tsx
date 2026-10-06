@@ -50,6 +50,7 @@ export function DeviceFilter({
             <button
               key={option.value}
               onClick={() => onStatusChange(option.value as any)}
+              aria-pressed={statusFilter === option.value}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                 statusFilter === option.value
                   ? 'bg-primary-blue text-white'
