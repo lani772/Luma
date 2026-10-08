@@ -45,7 +45,10 @@ export function Sidebar() {
       {/* Mobile Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors"
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isOpen}
+        aria-controls="sidebar-navigation"
+        className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -60,6 +63,8 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
+        id="sidebar-navigation"
+        aria-label="Sidebar Navigation"
         className={`fixed left-0 top-0 h-screen w-64 bg-card border-r border-border transform transition-transform duration-200 ease-out z-30 md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } md:relative`}
@@ -79,7 +84,7 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+          <nav aria-label="Main Navigation" className="flex-1 overflow-y-auto p-4 space-y-2">
             {mainNav.map(item => {
               const Icon = item.icon;
               const active = isActive(item.href);
