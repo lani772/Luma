@@ -45,6 +45,9 @@ export function Sidebar() {
       {/* Mobile Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isOpen}
+        aria-controls="sidebar-navigation"
         className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -60,6 +63,8 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
+        id="sidebar-navigation"
+        aria-label="Sidebar Navigation"
         className={`fixed left-0 top-0 h-screen w-64 bg-card border-r border-border transform transition-transform duration-200 ease-out z-30 md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } md:relative`}
@@ -88,6 +93,7 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setIsOpen(false)}
+                  aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors duration-200 ${
                     active
                       ? 'bg-primary-blue/20 text-primary-blue'
@@ -113,6 +119,7 @@ export function Sidebar() {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsOpen(false)}
+                      aria-current={active ? 'page' : undefined}
                       className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors duration-200 ${
                         active
                           ? 'bg-primary-blue/20 text-primary-blue'
@@ -134,6 +141,7 @@ export function Sidebar() {
               href="/settings"
               className="flex items-center gap-3 px-4 py-2 rounded-lg text-muted hover:text-foreground hover:bg-card-hover transition-colors"
               onClick={() => setIsOpen(false)}
+              aria-current={isActive('/settings') ? 'page' : undefined}
             >
               <Settings size={20} />
               <span className="font-medium">Settings</span>
@@ -156,6 +164,7 @@ export function Sidebar() {
 
             <button
               onClick={handleLogout}
+              aria-label="Log out of application"
               className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-red-warn hover:bg-red-warn/10 transition-colors font-medium"
             >
               <LogOut size={18} />

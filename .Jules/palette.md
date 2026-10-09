@@ -1,0 +1,3 @@
+## 2025-05-18 - Navigation Disclosure Controls and Active Indicators
+**Learning:** Collapsible sidebars and mobile navigation menus in React/Next.js apps often miss proper ARIA disclosure state attributes (`aria-expanded`, `aria-controls`, `aria-label`) and current route indicators (`aria-current="page"`). Without these, screen readers treat mobile toggles as non-descriptive buttons and cannot inform users which navigation item is currently active.
+**Action:** Always attach `aria-label`, `aria-expanded`, and `aria-controls` to collapsible menu buttons and pass `aria-current={active ? 'page' : undefined}` to navigation links in layout/sidebar components.
