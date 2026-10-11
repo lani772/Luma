@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { Lamp } from '@/lib/types';
-import { COLORS } from '@/lib/colors';
-import { formatPower, getDeviceStatus } from '@/lib/utils';
-import { Wifi, WifiOff, Lightbulb, LightbulbOff } from 'lucide-react';
-import Link from 'next/link';
+import { Lamp } from "@/lib/types";
+import { COLORS } from "@/lib/colors";
+import { formatPower, getDeviceStatus } from "@/lib/utils";
+import { Wifi, WifiOff, Lightbulb, LightbulbOff } from "lucide-react";
+import Link from "next/link";
 
 interface DeviceCardProps {
   device: Lamp;
@@ -28,7 +28,9 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
             }}
-            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
+            aria-label={`Turn ${device.on ? "off" : "on"} ${device.name}`}
+            title={`Turn ${device.on ? "off" : "on"} ${device.name}`}
+            className="p-2 rounded-lg hover:bg-card-hover focus-visible:ring-2 focus-visible:ring-primary-blue focus:outline-none transition-colors ml-2"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
@@ -47,7 +49,10 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
                 backgroundColor: device.online ? COLORS.onState : COLORS.muted,
               }}
             />
-            <span className="text-xs font-medium" style={{ color: statusColor }}>
+            <span
+              className="text-xs font-medium"
+              style={{ color: statusColor }}
+            >
               {status}
             </span>
             {!device.online && <WifiOff size={14} className="text-muted" />}
@@ -65,7 +70,12 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
         <div className="pt-3 border-t border-border">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted">Signal</span>
-            <div className="flex gap-1">
+            <div
+              className="flex gap-1"
+              role="img"
+              aria-label={`Signal strength: ${device.health.signalQuality}%`}
+              title={`Signal strength: ${device.health.signalQuality}%`}
+            >
               {[0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
