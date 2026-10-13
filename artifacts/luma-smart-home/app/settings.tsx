@@ -143,7 +143,7 @@ function SettingsRow({ icon, title, sub, value, onToggle, last }: { icon: string
         <Text style={styles.settingTitle}>{title}</Text>
         <Text style={styles.settingSub}>{sub}</Text>
       </View>
-      <LumaToggle value={value} onToggle={onToggle} />
+      <LumaToggle value={value} onToggle={onToggle} label={title} />
     </View>
   );
 }
