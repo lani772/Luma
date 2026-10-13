@@ -1,0 +1,3 @@
+## 2026-10-13 - Custom Pressable Toggle Switch Accessibility
+**Learning:** Custom toggle switch components created with `Pressable` in React Native/Expo Web lack default accessibility semantics. Adding `accessibilityRole="switch"`, `accessibilityState={{ checked, disabled }}`, `accessibilityLabel`, and explicit web `aria-*` attributes (`aria-checked`, `aria-disabled`, `aria-label`) ensures screen readers correctly recognize state and announce switch labels.
+**Action:** Always provide `accessibilityRole="switch"` and `accessibilityState` alongside `aria-*` attributes on custom `Pressable` toggle components.
