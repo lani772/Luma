@@ -8,9 +8,10 @@ interface LumaToggleProps {
   onToggle: (next: boolean) => void;
   disabled?: boolean;
   size?: "sm" | "md";
+  accessibilityLabel?: string;
 }
 
-export default function LumaToggle({ value, onToggle, disabled, size = "md" }: LumaToggleProps) {
+export default function LumaToggle({ value, onToggle, disabled, size = "md", accessibilityLabel = "Toggle switch" }: LumaToggleProps) {
   const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -46,7 +47,16 @@ export default function LumaToggle({ value, onToggle, disabled, size = "md" }: L
   }
 
   return (
-    <Pressable onPress={handlePress} disabled={disabled}>
+    <Pressable
+      onPress={handlePress}
+      disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value, disabled: !!disabled }}
+      accessibilityLabel={accessibilityLabel}
+      aria-checked={value}
+      aria-disabled={!!disabled}
+      aria-label={accessibilityLabel}
+    >
       <Animated.View style={[styles.track, { width: w, height: h, backgroundColor: bgColor, opacity: disabled ? 0.4 : 1 }]}>
         <Animated.View style={[styles.thumb, { width: r, height: r, left: thumbLeft, top: pad }]} />
       </Animated.View>
