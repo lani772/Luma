@@ -1,0 +1,3 @@
+## 2025-05-18 - Accessibility Attributes for Icon-Only Interactive Buttons
+**Learning:** Icon-only interactive buttons (such as device toggle switches, scene activation buttons, and mobile navigation toggles) lack visible text labels, making them inaccessible to screen reader users and ambiguous for mouse hover users without descriptive `aria-label`, state indicators (`aria-pressed`, `aria-expanded`), and native tooltips (`title`).
+**Action:** Always provide explicit dynamic `aria-label`s reflecting device/item names and current state (e.g. `Turn off ${device.name}`), state attributes (`aria-pressed` or `aria-expanded`), and clear hover tooltips for icon-only action controls.
