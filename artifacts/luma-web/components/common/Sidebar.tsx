@@ -45,7 +45,9 @@ export function Sidebar() {
       {/* Mobile Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors"
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isOpen}
+        className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-blue"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
