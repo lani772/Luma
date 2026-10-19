@@ -1,0 +1,4 @@
+[build]
+  base = "artifacts/mockup-sandbox"
+  command = "pnpm run build"
+  publish = "dist"

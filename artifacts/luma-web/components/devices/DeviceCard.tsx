@@ -12,7 +12,7 @@ interface DeviceCardProps {
 }
 
 export function DeviceCard({ device, onToggle }: DeviceCardProps) {
-  const statusColor = device.on ? COLORS.onState : COLORS.muted;
+  const statusColor = device.on ? COLORS.onState : COLORS.textMuted;
   const status = getDeviceStatus(device.online, device.on);
 
   return (
@@ -24,16 +24,29 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <p className="text-xs text-muted mt-1">{device.room}</p>
           </div>
           <button
+            type="button"
+            aria-label={device.on ? `Turn off ${device.name}` : `Turn on ${device.name}`}
+            aria-pressed={device.on}
+            disabled={!device.online}
+            title={
+              !device.online
+                ? `${device.name} is offline`
+                : device.on
+                ? `Turn off ${device.name}`
+                : `Turn on ${device.name}`
+            }
             onClick={(e) => {
               e.preventDefault();
-              onToggle?.(device.id, !device.on);
+              if (device.online) {
+                onToggle?.(device.id, !device.on);
+              }
             }}
-            className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
+            className="p-2 rounded-lg hover:bg-card-hover focus-visible:ring-2 focus-visible:ring-primary-blue focus:outline-none transition-colors ml-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {device.on ? (
               <Lightbulb size={18} style={{ color: COLORS.onState }} />
             ) : (
-              <LightbulbOff size={18} style={{ color: COLORS.muted }} />
+              <LightbulbOff size={18} style={{ color: COLORS.textMuted }} />
             )}
           </button>
         </div>
@@ -44,7 +57,7 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                backgroundColor: device.online ? COLORS.onState : COLORS.muted,
+                backgroundColor: device.online ? COLORS.onState : COLORS.textMuted,
               }}
             />
             <span className="text-xs font-medium" style={{ color: statusColor }}>
