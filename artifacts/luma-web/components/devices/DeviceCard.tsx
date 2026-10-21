@@ -24,10 +24,13 @@ export function DeviceCard({ device, onToggle }: DeviceCardProps) {
             <p className="text-xs text-muted mt-1">{device.room}</p>
           </div>
           <button
+            type="button"
             onClick={(e) => {
               e.preventDefault();
               onToggle?.(device.id, !device.on);
             }}
+            aria-label={`Turn ${device.name} ${device.on ? 'off' : 'on'}`}
+            title={`Turn ${device.name} ${device.on ? 'off' : 'on'}`}
             className="p-2 rounded-lg hover:bg-card-hover transition-colors ml-2"
           >
             {device.on ? (
