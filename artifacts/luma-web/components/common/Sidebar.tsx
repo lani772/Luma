@@ -45,6 +45,9 @@ export function Sidebar() {
       {/* Mobile Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={isOpen}
+        aria-controls="sidebar-navigation"
         className="fixed top-4 left-4 z-40 md:hidden p-2 hover:bg-card rounded-lg transition-colors"
       >
         {isOpen ? <X size={24} /> : <Menu size={24} />}
@@ -53,6 +56,7 @@ export function Sidebar() {
       {/* Overlay */}
       {isOpen && (
         <div
+          aria-hidden="true"
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
           onClick={() => setIsOpen(false)}
         />
@@ -60,6 +64,7 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
+        id="sidebar-navigation"
         className={`fixed left-0 top-0 h-screen w-64 bg-card border-r border-border transform transition-transform duration-200 ease-out z-30 md:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } md:relative`}
