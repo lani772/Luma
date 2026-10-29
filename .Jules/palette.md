@@ -1,0 +1,3 @@
+## 2025-05-20 - Action Card Icon-Only Button Accessibility Pattern
+**Learning:** Icon-only action buttons inside reusable cards (such as scene cards or device cards) need dynamic `aria-label` attributes incorporating item names (e.g., `Activate scene ${name}`) rather than generic static text to ensure screen reader users have proper context, alongside `focus-visible:ring-2` for keyboard accessibility and `aria-busy` during async loading states.
+**Action:** When working on card components with action buttons, always pass contextual item metadata to `aria-label`, mark SVGs/icons with `aria-hidden="true"`, and include explicit `focus-visible` ring indicators.
