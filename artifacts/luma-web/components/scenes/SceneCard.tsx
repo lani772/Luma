@@ -1,5 +1,5 @@
-import { LucideIcon, Play, Edit2 } from 'lucide-react';
-import { useState } from 'react';
+import { LucideIcon, Play, Edit2 } from "lucide-react";
+import { useState } from "react";
 
 interface SceneCardProps {
   id: string;
@@ -40,37 +40,58 @@ export function SceneCard({
     <div
       className={`relative rounded-lg border transition-all duration-300 p-5 backdrop-blur-sm ${
         isActive
-          ? 'border-green-500/50 bg-gradient-to-br from-green-500/10 to-emerald-500/5 shadow-lg shadow-green-500/10'
-          : 'border-slate-700/50 bg-gradient-to-br from-slate-800/50 to-slate-900/30 hover:border-slate-600 hover:shadow-md hover:shadow-slate-800/20'
+          ? "border-green-500/50 bg-gradient-to-br from-green-500/10 to-emerald-500/5 shadow-lg shadow-green-500/10"
+          : "border-slate-700/50 bg-gradient-to-br from-slate-800/50 to-slate-900/30 hover:border-slate-600 hover:shadow-md hover:shadow-slate-800/20"
       }`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+          <Icon className="w-6 h-6 text-white" aria-hidden="true" />
         </div>
         <div className="flex gap-1">
           {onEdit && (
             <button
+              type="button"
               onClick={onEdit}
-              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
-              title="Edit scene"
+              className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              title={`Edit ${name} scene`}
+              aria-label={`Edit ${name} scene`}
             >
-              <Edit2 className="w-4 h-4 text-slate-400 hover:text-slate-200" />
+              <Edit2
+                className="w-4 h-4 text-slate-400 hover:text-slate-200"
+                aria-hidden="true"
+              />
             </button>
           )}
           <button
+            type="button"
             onClick={handleActivate}
             disabled={isLoading}
             className={`p-1.5 rounded-lg transition-all ${
               isActive
-                ? 'bg-green-500/20 text-green-400'
-                : 'hover:bg-blue-500/20 text-slate-400 hover:text-blue-400'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-            title={isActive ? 'Scene active' : 'Activate scene'}
+                ? "bg-green-500/20 text-green-400"
+                : "hover:bg-blue-500/20 text-slate-400 hover:text-blue-400"
+            } disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500`}
+            title={
+              isLoading
+                ? `Activating ${name}...`
+                : isActive
+                  ? `${name} scene is active`
+                  : `Activate ${name} scene`
+            }
+            aria-label={
+              isLoading
+                ? `Activating ${name}...`
+                : isActive
+                  ? `${name} scene is active`
+                  : `Activate ${name} scene`
+            }
+            aria-busy={isLoading}
           >
             <Play
-              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`}
               fill="currentColor"
+              aria-hidden="true"
             />
           </button>
         </div>
