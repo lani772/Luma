@@ -1,0 +1,3 @@
+## 2025-05-18 - Contextual dynamic accessibility attributes on action buttons in card components
+**Learning:** In reusable card components (such as SceneCard, DeviceCard, or UserCard), icon-only action buttons frequently lack dynamic aria-labels incorporating the item name, have no explicit accessible focus rings (`focus-visible:ring-2 focus-visible:ring-blue-500 focus:outline-none`), and SVGs lack `aria-hidden="true"`.
+**Action:** When creating or refining card action controls, supply dynamic aria-labels (e.g. `aria-label={isActive ? \`Scene \${name} is active\` : \`Activate scene \${name}\`}`), ensure `aria-hidden="true"` on inner icons, and add `focus-visible:ring-2` styles for keyboard navigation.
